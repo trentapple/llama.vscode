@@ -43,9 +43,7 @@ brew install llama.cpp
 
 #### Any other OS
 
-Either use the [latest binaries](https://github.com/ggerganov/llama.cpp/releases) or [build `llama.cpp` from source](https://github.com/ggerganov/llama.cpp/blob/master/docs/build.md).
-
-For more information how to run the `llama.cpp` server, please read the Wiki: https://github.com/ggml-org/llama.vscode/wiki
+Either use the [latest binaries](https://github.com/ggerganov/llama.cpp/releases) or [build llama.cpp from source](https://github.com/ggerganov/llama.cpp/blob/master/docs/build.md). For more information how to run the `llama.cpp` server, please refer to the [Wiki](https://github.com/ggml-org/llama.vscode/wiki).
 
 ### llama.cpp settings
 
