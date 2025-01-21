@@ -4,6 +4,7 @@
   "description": "Local LLM-assisted text completion using llama.cpp",
   "version": "0.0.1",
   "publisher": "ggml-org",
+  "repository": "https://github.com/ggml-org/llama.vscode",
   "engines": {
     "vscode": "^1.70.0"
   },
