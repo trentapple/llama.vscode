@@ -29,7 +29,7 @@ TODO: write instructions
 
 ### llama.cpp setup
 
-The plugin requires a [llama.cpp](https://github.com/ggerganov/llama.cpp) server instance to be running at configured endpoint:
+The plugin requires a [llama.cpp](https://github.com/ggerganov/llama.cpp) server instance to be running at the configured endpoint:
 
 <img width="508" alt="image" src="https://github.com/user-attachments/assets/1cc40392-a92c-46df-8a4d-aa762c692ad7" />
 
@@ -41,7 +41,9 @@ brew install llama.cpp
 
 #### Any other OS
 
-Either [build from source](https://github.com/ggerganov/llama.cpp/blob/master/docs/build.md) or use the latest binaries: https://github.com/ggerganov/llama.cpp/releases
+Either use the [latest binaries](https://github.com/ggerganov/llama.cpp/releases) or [build `llama.cpp` from source](https://github.com/ggerganov/llama.cpp/blob/master/docs/build.md).
+
+For more information how to run the `llama.cpp` server, please read the Wiki: https://github.com/ggml-org/llama.vscode/wiki
 
 ### llama.cpp settings
 
