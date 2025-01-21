@@ -2,7 +2,7 @@
 
 Local LLM-assisted text completion extension for VS Code
 
-<img width="541" alt="image" src="https://github.com/user-attachments/assets/a28ec497-8b0a-440f-86dc-ed02f1f9a339" />
+![image](https://github.com/user-attachments/assets/857acc41-0b6c-4899-8f92-3020208a21eb)
 
 ---
 
@@ -11,10 +11,10 @@ TODO: gif
 ## Features
 
 - Auto-suggest on cursor movement
-- Toggle the suggestion manually by pressing `Ctrl+L`
 - Accept a suggestion with `Tab`
-- Accept the first line of a suggestion with `Shift+Tab`
-- Accept the next word with `Ctrl + Right Arrow`
+- Accept the first line of a suggestion with `Shift + Tab`
+- Accept the next word with `Ctrl/Cmd + Right`
+- Toggle the suggestion manually by pressing `Ctrl + L`
 - Control max text generation time
 - Configure scope of context around the cursor
 - Ring context with chunks from open and edited files and yanked text
@@ -66,6 +66,12 @@ Here are recommended settings, depending on the amount of VRAM that you have:
       --port 8012 -ngl 99 -fa -ub 1024 -b 1024 -dt 0.1 \
       --ctx-size 0 --cache-reuse 256
   ```
+
+You can use any other FIM-compatible model that your system can handle. By default, the models downloaded with the `-hf` flag are stored in:
+
+- Mac OS: `~/Library/Caches/llama.cpp/`
+- Linux: `~/.cache/llama.cpp`
+- Windows: `LOCALAPPDATA`
 
 ### Recommended LLMs
 
