@@ -2,7 +2,7 @@
 
 Local LLM-assisted text completion extension for VS Code
 
-TODO: image
+<img width="541" alt="image" src="https://github.com/user-attachments/assets/a28ec497-8b0a-440f-86dc-ed02f1f9a339" />
 
 ---
 
@@ -31,7 +31,7 @@ TODO: write instructions
 
 The plugin requires a [llama.cpp](https://github.com/ggerganov/llama.cpp) server instance to be running at configured endpoint:
 
-TODO: add image to the config
+<img width="508" alt="image" src="https://github.com/user-attachments/assets/1cc40392-a92c-46df-8a4d-aa762c692ad7" />
 
 #### Mac OS
 
