@@ -80,6 +80,5 @@ TODO: add examples
 
 The extension aims to be very simple and lightweight and at the same time to provide high-quality and performant local FIM completions, even on consumer-grade hardware.
 
-- The initial implementation was done by Ivaylo Gardev @igardev
+- The initial implementation was done by Ivaylo Gardev [@igardev](https://github.com/igardev) using the [llama.vim](https://github.com/ggml-org/llama.vim) plugin as a reference
 - Initial implementation and techincal description: https://github.com/ggerganov/llama.cpp/pull/9787
-
