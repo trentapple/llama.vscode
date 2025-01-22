@@ -6,7 +6,7 @@ Local LLM-assisted text completion extension for VS Code
 
 ---
 
-TODO: gif
+![llama vscode-swift0](https://github.com/user-attachments/assets/b19499d9-f50d-49d4-9dff-ff3e8ba23757)
 
 ## Features
 
@@ -62,6 +62,15 @@ Here are recommended settings, depending on the amount of VRAM that you have:
 
   ```bash
   llama-server \
+      -hf ggml-org/Qwen2.5-Coder-3B-Q8_0-GGUF \
+      --port 8012 -ngl 99 -fa -ub 1024 -b 1024 -dt 0.1 \
+      --ctx-size 0 --cache-reuse 256
+  ```
+
+- Less than 8GB VRAM:
+
+  ```bash
+  llama-server \
       -hf ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF \
       --port 8012 -ngl 99 -fa -ub 1024 -b 1024 -dt 0.1 \
       --ctx-size 0 --cache-reuse 256
@@ -87,4 +96,4 @@ TODO: add examples
 The extension aims to be very simple and lightweight and at the same time to provide high-quality and performant local FIM completions, even on consumer-grade hardware.
 
 - The initial implementation was done by Ivaylo Gardev [@igardev](https://github.com/igardev) using the [llama.vim](https://github.com/ggml-org/llama.vim) plugin as a reference
-- Initial implementation and techincal description: https://github.com/ggerganov/llama.cpp/pull/9787
+- Techincal description: https://github.com/ggerganov/llama.cpp/pull/9787
