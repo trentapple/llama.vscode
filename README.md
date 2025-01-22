@@ -97,3 +97,7 @@ The extension aims to be very simple and lightweight and at the same time to pro
 
 - The initial implementation was done by Ivaylo Gardev [@igardev](https://github.com/igardev) using the [llama.vim](https://github.com/ggml-org/llama.vim) plugin as a reference
 - Techincal description: https://github.com/ggerganov/llama.cpp/pull/9787
+
+## Other IDEs
+
+- Vim/Neovim: https://github.com/ggml-org/llama.vim
