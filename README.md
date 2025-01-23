@@ -10,7 +10,7 @@ Local LLM-assisted text completion extension for VS Code
 
 ## Features
 
-- Auto-suggest on cursor movement
+- Auto-suggest on input
 - Accept a suggestion with `Tab`
 - Accept the first line of a suggestion with `Shift + Tab`
 - Accept the next word with `Ctrl/Cmd + Right`
