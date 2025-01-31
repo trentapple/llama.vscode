@@ -43,17 +43,17 @@ export class Architect {
     setStatusBar = (context: vscode.ExtensionContext) => {
         this.initializeStatusBar();
         this.registerEventListeners(context);
-        
+
         context.subscriptions.push(
             vscode.commands.registerCommand('llama-vscode.showMenu', async () => {
                 const currentLanguage = vscode.window.activeTextEditor?.document.languageId;
                 const config = vscode.workspace.getConfiguration('llama-vscode');
                 const languageSettings = config.get<Record<string, boolean>>('languageSettings') || {};
                 const isLanguageEnabled = currentLanguage ? this.isCompletionEnabled(undefined, currentLanguage) : true;
-    
+
                 const items = this.createMenuItems(currentLanguage, isLanguageEnabled);
                 const selected = await vscode.window.showQuickPick(items, { title: "Llama Menu" });
-                
+
                 if (selected) {
                     await this.handleMenuSelection(selected, currentLanguage, languageSettings);
                 }
@@ -320,7 +320,7 @@ export class Architect {
     delay = (ms: number) => {
         return new Promise<void>(resolve => setTimeout(resolve, ms));
       }
-    
+
       addEventLog = (group: string, event: string, details: string) => {
         this.eventlogs.push(Date.now() + ", " + group + ", " + event + ", " + details.replace(",", " "));
         if (this.eventlogs.length > this.extConfig.MAX_EVENTS_IN_LOG) {
@@ -399,7 +399,10 @@ export class Architect {
                 this.addEventLog(group, "DISCARD_SUGGESTION_RETURN", "")
                 return [];
             }
-            completion = this.updateSuggestion( suggestionLines, document, position, linePrefix, lineSuffix);
+
+            // TODO: this is disabled because it removes many useful suggestions
+            //completion = this.updateSuggestion(suggestionLines, document, position, linePrefix, lineSuffix);
+
             if (!isCachedResponse) this.lruResultCache.put(hashKey, completion)
             this.lastCompletion = this.getCompletionDetails(completion, position, inputPrefix, inputSuffix, prompt);
 
@@ -443,7 +446,7 @@ export class Architect {
         this.updateStatusBarText();
         this.myStatusBarItem.show();
     }
-    
+
     private registerEventListeners(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             vscode.workspace.onDidChangeConfiguration(e => {
@@ -456,7 +459,7 @@ export class Architect {
             })
         );
     }
-    
+
     private createMenuItems(currentLanguage: string | undefined, isLanguageEnabled: boolean): vscode.QuickPickItem[] {
         return [
             {
@@ -475,7 +478,7 @@ export class Architect {
             }
         ].filter(Boolean) as vscode.QuickPickItem[];
     }
-    
+
     private async handleMenuSelection(selected: vscode.QuickPickItem, currentLanguage: string | undefined, languageSettings: Record<string, boolean>) {
         switch (selected.label) {
             case "$(gear) Edit Settings...":
@@ -490,7 +493,7 @@ export class Architect {
         }
         this.updateStatusBarText();
     }
-    
+
     private async handleCompletionToggle(label: string, currentLanguage: string | undefined, languageSettings: Record<string, boolean>) {
         const config = vscode.workspace.getConfiguration('llama-vscode');
         if (label.includes('All Completions')) {
@@ -501,13 +504,13 @@ export class Architect {
             await config.update('languageSettings', languageSettings, true);
         }
     }
-    
+
     private updateStatusBarText() {
         const editor = vscode.window.activeTextEditor;
         const currentLanguage = editor?.document.languageId;
         const isEnabled = this.extConfig.enabled;
         const isLanguageEnabled = currentLanguage ? this.isCompletionEnabled(editor.document) : true;
-        
+
         if (!isEnabled) {
             this.myStatusBarItem.text = "$(x) llama.vscode";
         } else if (currentLanguage && !isLanguageEnabled) {
@@ -519,14 +522,14 @@ export class Architect {
 
     private isCompletionEnabled(document?: vscode.TextDocument, language?: string): boolean {
         if (!this.extConfig.enabled) return false;
-        
+
         const languageToCheck = language ?? document?.languageId;
         if (languageToCheck) {
             const config = vscode.workspace.getConfiguration('llama-vscode');
             const languageSettings = config.get<Record<string, boolean>>('languageSettings') || {};
             return languageSettings[languageToCheck] ?? true;
         }
-        
+
         return true;
     }
 
@@ -688,7 +691,7 @@ export class Architect {
             let indLastSuggestionLine =  suggestionLines.slice(1).reverse().findIndex((value, index) => value != document.lineAt((position.line + linesToCompareCount) - index).text)
             return suggestionLines.slice(0, indLastSuggestionLine + 2).join("\n"); // if indLastSuggestionLine is -1 then all following lines are the same as the suggestion
         }
-        
+
         // if the following lines repeat the suggestion and the first line ends with the line suffix update suggestion
         if (suggestionLines.length > 1
             && suggestionLines[0].endsWith(lineSuffix)
