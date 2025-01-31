@@ -78,6 +78,24 @@ Here are recommended settings, depending on the amount of VRAM that you have:
       --ctx-size 0 --cache-reuse 256
   ```
 
+<details>
+  <summary>CPU-only configs</summary>
+
+These are `llama-server` settings for CPU-only hardware. Note that the quality will be significantly lower:
+
+```bash
+llama-server \
+    -hf ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF \
+    --port 8012 -ub 512 -b 512 --ctx-size 0 --cache-reuse 256
+```
+
+```bash
+llama-server \
+    -hf ggml-org/Qwen2.5-Coder-0.5B-Q8_0-GGUF \
+    --port 8012 -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256
+```
+</details>
+
 You can use any other FIM-compatible model that your system can handle. By default, the models downloaded with the `-hf` flag are stored in:
 
 - Mac OS: `~/Library/Caches/llama.cpp/`
