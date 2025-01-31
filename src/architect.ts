@@ -1,9 +1,10 @@
 // TODO
-// По подразбиране порта по подразбиране да е друг (сървера и екстеншъна) - примерно 8012 (за да няма конфликти)
-// Да не премигва при избор само на ред или дума (върни частично проверката за съвпадение с последния рекуест?)
+// Ако има linesuffix да се остави от suggestion само първия ред (намаляване на дължината на отговора при заявката?)
+// При кеширане на следваща заявка да се отрязват от префикса първите няколко реда ако е необходимо
 // Profiling - провери кое колко време отнема, за да оптимизираш (примерно пускай паралелно информацията в статус бара..., по-малко търсене в кеша...)
 // - Търсенето в кеша при 250 елемента и 49 символа отнема 1/5 милисекунда => може по-голям кеш, може търсене до началото на реда
 // - ShowInfo < 1/10 мс
+// Да не премигва при избор само на ред или дума (върни частично проверката за съвпадение с последния рекуест?)
 // (Нисък приоритет) Прозорец на майкософт интелисенс - да не се показва или нещо друго по-красиво
 import * as vscode from 'vscode';
 import { LRUCache } from './lru-cache';
@@ -391,7 +392,6 @@ export class Architect {
 
             let suggestionLines = completion.split(/\r?\n/)
             this.removeTrailingNewLines(suggestionLines);
-            completion = suggestionLines.join('\n')
 
             if (this.shouldDiscardSuggestion(suggestionLines, document, position, linePrefix, lineSuffix)) {
                 this.showInfo(undefined);
@@ -399,6 +399,7 @@ export class Architect {
                 this.addEventLog(group, "DISCARD_SUGGESTION_RETURN", "")
                 return [];
             }
+            completion = this.updateSuggestion( suggestionLines, document, position, linePrefix, lineSuffix);
             if (!isCachedResponse) this.lruResultCache.put(hashKey, completion)
             this.lastCompletion = this.getCompletionDetails(completion, position, inputPrefix, inputSuffix, prompt);
 
@@ -406,9 +407,11 @@ export class Architect {
             setTimeout(async () => {
                 if (isCachedResponse) this.showCachedInfo()
                 else this.showInfo(data);
-                if (!(token.isCancellationRequested)){
+                if (!token.isCancellationRequested && lineSuffix.trim() === ""){
                     await this.cacheFutureSuggestion(inputPrefix, inputSuffix, prompt, suggestionLines);
                     await this.cacheFutureAcceptLineSuggestion(inputPrefix, inputSuffix, prompt, suggestionLines);
+                }
+                if (!token.isCancellationRequested){
                     this.extraContext.addFimContextChunks(position, context, document);
                 }
             }, 0);
@@ -506,11 +509,11 @@ export class Architect {
         const isLanguageEnabled = currentLanguage ? this.isCompletionEnabled(editor.document) : true;
         
         if (!isEnabled) {
-            this.myStatusBarItem.text = "$(x) Llama";
+            this.myStatusBarItem.text = "$(x) llama.vscode";
         } else if (currentLanguage && !isLanguageEnabled) {
-            this.myStatusBarItem.text = `$(x) Llama (${currentLanguage})`;
+            this.myStatusBarItem.text = `$(x) llama.vscode (${currentLanguage})`;
         } else {
-            this.myStatusBarItem.text = "$(check) Llama";
+            this.myStatusBarItem.text = "$(check) llama.vscode";
         }
     }
 
@@ -534,6 +537,10 @@ export class Architect {
         if (suggestionLines.length > 1) {
             futureInputPrefix = inputPrefix + prompt + suggestionLines.slice(0, -1).join('\n') + '\n';
             futurePrompt = suggestionLines[suggestionLines.length - 1];
+            let futureInputPrefixLines = futureInputPrefix.slice(0,-1).split(/\r?\n/)
+            if (futureInputPrefixLines.length > this.extConfig.n_prefix){
+                futureInputPrefix = futureInputPrefixLines.slice(futureInputPrefixLines.length - this.extConfig.n_prefix).join('\n')+ '\n';
+            }
         }
         let futureHashKey = this.lruResultCache.getHash(futureInputPrefix + "|" + futureInputSuffix + "|" + futurePrompt)
         let cached_completion = this.lruResultCache.get(futureHashKey)
@@ -660,6 +667,42 @@ export class Architect {
                 return true;
         }
         return discardSuggestion;
+    }
+
+    // returns suggestion with removed trailing part, which is the same as the existing code
+    updateSuggestion = (suggestionLines: string[], document: vscode.TextDocument, position: vscode.Position, linePrefix: string, lineSuffix: string) => {
+        let updatedSuggestion = suggestionLines.join("\n");
+        if (suggestionLines.length == 1 && lineSuffix.trim() === "") return updatedSuggestion
+        // if suggestion is one line and the line suffix is a suffix of the line - remove the line suffix
+        if (suggestionLines.length == 1 && suggestionLines[0].endsWith(lineSuffix)) return suggestionLines[0].slice(0, -lineSuffix.length);
+
+        // if cursor on the last line just return the suggestion
+        if (position.line == document.lineCount - 1) return updatedSuggestion;
+
+        // if the following lines repeat the suggestion and the line suffix is empty - update suggestion
+        if (suggestionLines.length > 1
+            && (lineSuffix.trim() === "")) {
+            let linesToCompareCount = suggestionLines.length - 1
+            // if cursor on the last line don't discard
+            if (position.line + linesToCompareCount > document.lineCount - 1) return updatedSuggestion;
+            let indLastSuggestionLine =  suggestionLines.slice(1).reverse().findIndex((value, index) => value != document.lineAt((position.line + linesToCompareCount) - index).text)
+            return suggestionLines.slice(0, indLastSuggestionLine + 2).join("\n"); // if indLastSuggestionLine is -1 then all following lines are the same as the suggestion
+        }
+        
+        // if the following lines repeat the suggestion and the first line ends with the line suffix update suggestion
+        if (suggestionLines.length > 1
+            && suggestionLines[0].endsWith(lineSuffix)
+            && suggestionLines.slice(1).every((value, index) => value === document.lineAt((position.line + 1) + index).text)){
+            return suggestionLines[0].slice(0, -lineSuffix.length);
+        }
+
+        // if there is a line suffix suggest only one line
+        if (suggestionLines.length > 1
+            && lineSuffix.trim() != ""){
+            return suggestionLines[0];
+        }
+
+        return updatedSuggestion;
     }
 
     private getCompletionDetails = (completion: string, position: vscode.Position, inputPrefix: string, inputSuffix: string, prompt: string) => {
