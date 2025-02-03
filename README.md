@@ -108,8 +108,9 @@ The plugin requires FIM-compatible models: [HF collection](https://huggingface.c
 
 ## Examples
 
-TODO: add examples
+Speculative FIMs running locally on a M2 Studio:
 
+https://github.com/user-attachments/assets/cab99b93-4712-40b4-9c8d-cf86e98d4482
 
 ## Implementation details
 
