@@ -677,10 +677,10 @@ export class Architect {
 
     // cut part of the suggestion in some special cases
     updateSuggestion = (suggestionLines: string[], lineSuffix: string) => {
-        if (lineSuffix.trim() != ""){
+        if (lineSuffix.trim() != "") {
             if (suggestionLines[0].endsWith(lineSuffix)) return suggestionLines[0].slice(0, -lineSuffix.length);
             if (suggestionLines.length > 1) return suggestionLines[0];
-        } 
+        }
 
         return suggestionLines.join("\n");
     }

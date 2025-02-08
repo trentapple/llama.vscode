@@ -114,25 +114,10 @@
           "default": true,
           "description": "If code completion should be trggered automatically (true) or only by pressing Ctrl+l."
         },
-       "llama-vscode.api_key": {
+        "llama-vscode.api_key": {
           "type": "string",
           "default": "",
           "description": "llama.cpp server api key or OpenAI endpoint API key (optional)"
-        },
-        "llama-vscode.is_openai_compatible": {
-          "type": "boolean",
-          "default": false,
-          "description": "If the server exposes an OpenAI API compatible endpoint."
-        },
-        "llama-vscode.openai_client_model": {
-          "type": "string",
-          "default": "",
-          "description": "The FIM friendly model supported by your OpenAI compatible endpoint to be used (e.g., Qwen2.5-Coder-14B-4-bit)"
-        },
-        "llama-vscode.openai_prompt_template": {
-          "type": "string",
-          "default": "<|fim_prefix|>{inputPrefix}{prompt}<|fim_suffix|>{inputSuffix}<|fim_middle|>",
-          "description": "The prompt template to be used for the OpenAI compatible endpoint."
         },
         "llama-vscode.n_prefix": {
           "type": "number",
@@ -204,7 +189,6 @@
           "default": true,
           "description": "Enable/disable completions"
         },
-      
         "llama-vscode.languageSettings": {
             "type": "object",
             "default": {
@@ -214,8 +198,23 @@
               "type": "boolean"
             },
             "description": "Enable/disable suggestions for specific languages"
-          }
+        },
+        "llama-vscode.use_openai_endpoint": {
+          "type": "boolean",
+          "default": false,
+          "description": "[EXPERIMENTAL] Use OAI endpoint. Slow and poor quality - avoid using"
+        },
+        "llama-vscode.openai_client_model": {
+          "type": "string",
+          "default": "",
+          "description": "The FIM friendly model supported by your OpenAI compatible endpoint to be used (e.g., Qwen2.5-Coder-14B-4-bit)"
+        },
+        "llama-vscode.openai_prompt_template": {
+          "type": "string",
+          "default": "<|fim_prefix|>{inputPrefix}{prompt}<|fim_suffix|>{inputSuffix}<|fim_middle|>",
+          "description": "The prompt template to be used for the OpenAI compatible endpoint."
         }
+      }
     }
   },
   "scripts": {

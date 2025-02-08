@@ -5,10 +5,6 @@ export class Configuration {
     // extension configs
     enabled = true;
     endpoint = "http=//127.0.0.1:8012";
-    is_openai_compatible = false;
-    openai_client: OpenAI | null = null;
-    openai_client_model: string = "";
-    openai_prompt_template: string = "<|fim_prefix|>{inputPrefix}{prompt}<|fim_suffix|>{inputSuffix}<|fim_middle|>";
     auto = true;
     api_key = "";
     n_prefix = 256;
@@ -24,9 +20,19 @@ export class Configuration {
     ring_scope = 1024;
     ring_update_ms = 1000;
     language = "en";
+
+    // experimental - avoid using
+    use_openai_endpoint = false;
+    openai_client: OpenAI | null = null;
+    openai_client_model: string = "";
+    openai_prompt_template: string = "<|fim_prefix|>{inputPrefix}{prompt}<|fim_suffix|>{inputSuffix}<|fim_middle|>";
+
     // additional configs
+    // TODO: change to snake_case for consistency
     axiosRequestConfig = {};
     disabledLanguages: string[] = [];
+
+    // TODO: change to snake_case for consistency
     RING_UPDATE_MIN_TIME_LAST_COMPL = 3000;
     MIN_TIME_BETWEEN_COMPL = 600;
     MAX_LAST_PICK_LINE_DISTANCE = 32;
@@ -82,7 +88,7 @@ export class Configuration {
     private updateConfigs = (config: vscode.WorkspaceConfiguration) => {
         // TODO Handle the case of wrong types for the configuration values
         this.endpoint = this.trimTrailingSlash(String(config.get<string>("endpoint")));
-        this.is_openai_compatible = Boolean(config.get<boolean>("is_openai_compatible"));
+        this.use_openai_endpoint = Boolean(config.get<boolean>("use_openai_endpoint"));
         this.openai_client_model = String(config.get<string>("openai_client_model"));
         this.openai_prompt_template = String(config.get<string>("openai_prompt_template"));
         this.auto = Boolean(config.get<boolean>("auto"));
@@ -139,7 +145,7 @@ export class Configuration {
 
     setOpenAiClient = () => {
         this.openai_client = null;
-        if (this.is_openai_compatible) {
+        if (this.use_openai_endpoint) {
             const openai = new OpenAI({
                 apiKey: this.api_key || "empty",
                 baseURL: this.endpoint,

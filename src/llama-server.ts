@@ -103,7 +103,7 @@ export class LlamaServer {
         nindent: number
     ): Promise<LlamaResponse | undefined> => {
         // If the server is OpenAI compatible, use the OpenAI API to get the completion
-        if (this.extConfig.is_openai_compatible) {
+        if (this.extConfig.use_openai_endpoint) {
             const response = await this.handleOpenAICompletion(chunks, inputPrefix, inputSuffix, prompt);
             return response || undefined;
         }
@@ -120,7 +120,7 @@ export class LlamaServer {
 
     prepareLlamaForNextCompletion = (chunks: any[]): void => {
         // If the server is OpenAI compatible, use the OpenAI API to prepare for the next FIM
-        if (this.extConfig.is_openai_compatible) {
+        if (this.extConfig.use_openai_endpoint) {
             // wtg 20250207 - per @igardev ... "This makes sense only if there is a server cache"
             // this.handleOpenAICompletion(chunks, "", "", "", true);
             return;
