@@ -31,6 +31,7 @@ export class Configuration {
     // TODO: change to snake_case for consistency
     axiosRequestConfig = {};
     disabledLanguages: string[] = [];
+    languageSettings:Record<string, boolean> = {}
 
     // TODO: change to snake_case for consistency
     RING_UPDATE_MIN_TIME_LAST_COMPL = 3000;
@@ -39,6 +40,8 @@ export class Configuration {
     MAX_QUEUED_CHUNKS = 16;
     DELAY_BEFORE_COMPL_REQUEST = 150;
     MAX_EVENTS_IN_LOG = 250;
+
+    config: vscode.WorkspaceConfiguration;
 
     private languageBg = new Map<string, string>([
         ["no suggestion", "нямам предложение"],
@@ -79,8 +82,9 @@ export class Configuration {
         ["fr", this.languageFr],
     ]);
 
-    constructor(config: vscode.WorkspaceConfiguration) {
-        this.updateConfigs(config);
+    constructor() {
+        this.config = vscode.workspace.getConfiguration("llama-vscode");
+        this.updateConfigs(this.config);
         this.setLlamaRequestConfig();
         this.setOpenAiClient();
     }
@@ -108,6 +112,7 @@ export class Configuration {
         this.language = String(config.get<string>("language"));
         this.disabledLanguages = config.get<string[]>("disabledLanguages") || [];
         this.enabled = Boolean(config.get<boolean>("enabled", true));
+        this.languageSettings = config.get<Record<string, boolean>>('languageSettings') || {};
     };
 
     getUiText = (uiText: string): string | undefined => {
@@ -146,12 +151,21 @@ export class Configuration {
     setOpenAiClient = () => {
         this.openai_client = null;
         if (this.use_openai_endpoint) {
-            const openai = new OpenAI({
+            this.openai_client = new OpenAI({
                 apiKey: this.api_key || "empty",
                 baseURL: this.endpoint,
             });
-
-            this.openai_client = openai;
         }
     };
+
+    isCompletionEnabled = (document?: vscode.TextDocument, language?: string): boolean =>  {
+        if (!this.enabled) return false;
+
+        const languageToCheck = language ?? document?.languageId;
+        if (languageToCheck) {
+            return this.languageSettings[languageToCheck] ?? true;
+        }
+
+        return true;
+    }
 }

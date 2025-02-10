@@ -1,10 +1,8 @@
-import { Configuration } from './configuration';
-import { LlamaServer } from './llama-server';
 import * as vscode from 'vscode';
+import {Application} from "./application";
 
 export class ExtraContext {
-    private extConfig: Configuration
-    private llamaServer: LlamaServer
+    private app: Application
     chunks: any[] = [];
     chunksLines: string[][] = []; //lines of each chunk are needed for measuring the distance
     queuedChunks: any[] = [];
@@ -12,30 +10,30 @@ export class ExtraContext {
     lastComplStartTime = Date.now();
     lastLinePick = -9999;
     ringNEvict = 0;
+    private fileSaveTimeout: NodeJS.Timeout | undefined;
 
-    constructor(config: Configuration, llamaServer: LlamaServer) {
-        this.extConfig = config
-        this.llamaServer = llamaServer
+    constructor(application: Application) {
+        this.app = application
     }
 
     periodicRingBufferUpdate = () => {
         if (this.queuedChunks === undefined
             || this.queuedChunks === null
             || this.queuedChunks.length == 0
-            || Date.now() - this.lastComplStartTime < this.extConfig.RING_UPDATE_MIN_TIME_LAST_COMPL) {
+            || Date.now() - this.lastComplStartTime < this.app.extConfig.RING_UPDATE_MIN_TIME_LAST_COMPL) {
             return;
         }
         let queueChunkLns = this.queuedChunksLines.shift()
         if (queueChunkLns != undefined) {
             this.chunksLines.push(queueChunkLns);
             this.chunks.push(this.queuedChunks.shift());
-            while (this.chunks.length > this.extConfig.ring_n_chunks) {
+            while (this.chunks.length > this.app.extConfig.ring_n_chunks) {
                 this.chunks.shift();
                 this.chunksLines.shift()
             }
         }
 
-        this.llamaServer.updateExtraContext(this.chunks)
+        this.app.llamaServer.updateExtraContext(this.chunks)
     };
 
     // Class field is used instead of a function to make "this" available
@@ -47,12 +45,12 @@ export class ExtraContext {
         // TODO: something more clever? reranking?
         // TODO Clarify if only on automatic trigerring the context chunks is needed
         // if (context.triggerKind == vscode.InlineCompletionTriggerKind.Automatic && deltaLines > this.extConfig.MAX_LAST_PICK_LINE_DISTANCE) {
-            if (deltaLines > this.extConfig.MAX_LAST_PICK_LINE_DISTANCE) {
+            if (deltaLines > this.app.extConfig.MAX_LAST_PICK_LINE_DISTANCE) {
             // expand the prefix even further
-            let prefixChunkLines = this.getDocumentLines(Math.max(0, position.line - this.extConfig.ring_scope), Math.max(0, position.line - this.extConfig.n_prefix), document);
+            let prefixChunkLines = this.getDocumentLines(Math.max(0, position.line - this.app.extConfig.ring_scope), Math.max(0, position.line - this.app.extConfig.n_prefix), document);
             this.pickChunk(prefixChunkLines, false, false, document);
             // pick a suffix chunk
-            let suffixChunkLines = this.getDocumentLines(Math.min(document.lineCount - 1, position.line + this.extConfig.n_suffix), Math.min(document.lineCount - 1, position.line + this.extConfig.n_suffix + this.extConfig.ring_chunk_size), document)
+            let suffixChunkLines = this.getDocumentLines(Math.min(document.lineCount - 1, position.line + this.app.extConfig.n_suffix), Math.min(document.lineCount - 1, position.line + this.app.extConfig.n_suffix + this.app.extConfig.ring_chunk_size), document)
             this.pickChunk(suffixChunkLines, false, false, document);
 
             this.lastLinePick = position.line;
@@ -69,7 +67,7 @@ export class ExtraContext {
             return
         }
 
-        if (this.extConfig.ring_n_chunks <= 0)
+        if (this.app.extConfig.ring_n_chunks <= 0)
             return;
 
         // don't pick very small chunks
@@ -77,12 +75,12 @@ export class ExtraContext {
             return
 
         let newChunkLines: string[]
-        if (lines.length + 1 < this.extConfig.ring_chunk_size)
+        if (lines.length + 1 < this.app.extConfig.ring_chunk_size)
             newChunkLines = lines
         else {
             // TODO Clarify why only half sized chunk
-            let startLine = Math.floor(Math.random() * (Math.max(0, lines.length - this.extConfig.ring_chunk_size / 2 + 1)))
-            let endline = Math.min(startLine + this.extConfig.ring_chunk_size / 2, lines.length)
+            let startLine = Math.floor(Math.random() * (Math.max(0, lines.length - this.app.extConfig.ring_chunk_size / 2 + 1)))
+            let endline = Math.min(startLine + this.app.extConfig.ring_chunk_size / 2, lines.length)
             newChunkLines = lines.slice(startLine, endline)
         }
         let chunkString = newChunkLines.join('\n') + '\n'
@@ -115,7 +113,7 @@ export class ExtraContext {
             }
         }
 
-        if (this.queuedChunks.length >= this.extConfig.MAX_QUEUED_CHUNKS) {
+        if (this.queuedChunks.length >= this.app.extConfig.MAX_QUEUED_CHUNKS) {
             this.queuedChunks.splice(0, 1)
         }
 
@@ -125,7 +123,7 @@ export class ExtraContext {
     }
 
     pickChunkAroundCursor = (cursorLine: number, activeDocument: vscode.TextDocument) => {
-        let chunkLines = this.getDocumentLines(Math.max(0, cursorLine - this.extConfig.ring_chunk_size / 2), Math.min(cursorLine + this.extConfig.ring_chunk_size / 2, activeDocument.lineCount - 1), activeDocument)
+        let chunkLines = this.getDocumentLines(Math.max(0, cursorLine - this.app.extConfig.ring_chunk_size / 2), Math.min(cursorLine + this.app.extConfig.ring_chunk_size / 2, activeDocument.lineCount - 1), activeDocument)
         this.pickChunk(chunkLines, true, true, activeDocument);
     }
 
@@ -149,4 +147,36 @@ export class ExtraContext {
         return intersection.size / union.size;
     }
 
+    handleDocumentSave = (document: vscode.TextDocument) => {
+        if (this.fileSaveTimeout) {
+            clearTimeout(this.fileSaveTimeout);
+        }
+
+        this.fileSaveTimeout = setTimeout(() => {
+            let chunkLines: string[] = []
+            const editor = vscode.window.activeTextEditor;
+            // If there's an active editor and it's editing the saved document
+            if (editor && editor.document === document) {
+                const cursorPosition = editor.selection.active;
+                const line = cursorPosition.line;
+                this.app.extraContext.pickChunkAroundCursor(line, document)
+            } else {
+                chunkLines = document.getText().split(/\r?\n/);
+                this.app.extraContext.pickChunk(chunkLines, true, true, document);
+            }
+        }, 1000); // Adjust the delay as needed
+        this.app.logger.addEventLog("", "SAVE", "")
+    }
+
+    addChunkFromSelection = (editor:  vscode.TextEditor) => {
+        const selection = editor.selection;
+        const selectedText = editor.document.getText(selection);
+
+        let selectedLines = selectedText.split(/\r?\n/);
+        // Run async to not affect copy action
+        setTimeout(async () => {
+            this.app.extraContext.pickChunk(selectedLines, false, true, editor.document);
+        }, 1000);
+        return selectedLines;
+    }
 }
