@@ -1,6 +1,5 @@
 import axios from "axios";
-import { Configuration } from "./configuration";
-import { PassThrough } from "stream";
+import {Application} from "./application";
 
 const STATUS_OK = 200;
 
@@ -20,7 +19,8 @@ export interface LlamaResponse {
 }
 
 export class LlamaServer {
-    private extConfig: Configuration;
+    // private extConfig: Configuration;
+    private app: Application
     private readonly defaultRequestParams = {
         top_k: 40,
         top_p: 0.99,
@@ -29,8 +29,8 @@ export class LlamaServer {
         cache_prompt: true,
     } as const;
 
-    constructor(config: Configuration) {
-        this.extConfig = config;
+    constructor(application: Application) {
+        this.app = application;
     }
 
     private replacePlaceholders(template: string, replacements: { [key: string]: string }): string {
@@ -44,21 +44,21 @@ export class LlamaServer {
         prompt: string,
         isPreparation = false
     ): Promise<LlamaResponse | void> {
-        const client = this.extConfig.openai_client;
+        const client = this.app.extConfig.openai_client;
         if (!client) return;
 
         const additional_context = chunks.length > 0 ? "Context:\n\n" + chunks.join("\n") : "";
 
         const replacements = {
-            inputPrefix: inputPrefix.slice(-this.extConfig.n_prefix),
+            inputPrefix: inputPrefix.slice(-this.app.extConfig.n_prefix),
             prompt: prompt,
-            inputSuffix: inputSuffix.slice(0, this.extConfig.n_suffix),
+            inputSuffix: inputSuffix.slice(0, this.app.extConfig.n_suffix),
         };
 
         const rsp = await client.completions.create({
-            model: this.extConfig.openai_client_model || "",
-            prompt: additional_context + this.replacePlaceholders(this.extConfig.openai_prompt_template, replacements),
-            max_tokens: this.extConfig.n_predict,
+            model: this.app.extConfig.openai_client_model || "",
+            prompt: additional_context + this.replacePlaceholders(this.app.extConfig.openai_prompt_template, replacements),
+            max_tokens: this.app.extConfig.n_predict,
             temperature: 0.1,
             top_p: this.defaultRequestParams.top_p,
             stream: this.defaultRequestParams.stream,
@@ -91,7 +91,7 @@ export class LlamaServer {
                 n_predict: 0,
                 samplers: [],
                 cache_prompt: true,
-                t_max_prompt_ms: this.extConfig.t_max_prompt_ms,
+                t_max_prompt_ms: this.app.extConfig.t_max_prompt_ms,
                 t_max_predict_ms: 1,
             };
         }
@@ -101,11 +101,11 @@ export class LlamaServer {
             input_suffix: inputSuffix,
             input_extra: chunks,
             prompt,
-            n_predict: this.extConfig.n_predict,
+            n_predict: this.app.extConfig.n_predict,
             ...this.defaultRequestParams,
             ...(nindent && { n_indent: nindent }),
-            t_max_prompt_ms: this.extConfig.t_max_prompt_ms,
-            t_max_predict_ms: this.extConfig.t_max_predict_ms,
+            t_max_prompt_ms: this.app.extConfig.t_max_prompt_ms,
+            t_max_predict_ms: this.app.extConfig.t_max_predict_ms,
         };
     }
 
@@ -117,16 +117,16 @@ export class LlamaServer {
         nindent: number
     ): Promise<LlamaResponse | undefined> => {
         // If the server is OpenAI compatible, use the OpenAI API to get the completion
-        if (this.extConfig.use_openai_endpoint) {
+        if (this.app.extConfig.use_openai_endpoint) {
             const response = await this.handleOpenAICompletion(chunks, inputPrefix, inputSuffix, prompt);
             return response || undefined;
         }
 
         // else, default to llama.cpp
         const response = await axios.post<LlamaResponse>(
-            `${this.extConfig.endpoint}/infill`,
+            `${this.app.extConfig.endpoint}/infill`,
             this.createRequestPayload(false, inputPrefix, inputSuffix, chunks, prompt, nindent),
-            this.extConfig.axiosRequestConfig
+            this.app.extConfig.axiosRequestConfig
         );
 
         return response.status === STATUS_OK ? response.data : undefined;
@@ -134,17 +134,15 @@ export class LlamaServer {
 
     updateExtraContext = (chunks: any[]): void => {
         // If the server is OpenAI compatible, use the OpenAI API to prepare for the next FIM
-        if (this.extConfig.use_openai_endpoint) {
-            // wtg 20250207 - per @igardev ... "This makes sense only if there is a server cache"
-            // this.handleOpenAICompletion(chunks, "", "", "", true);
+        if (this.app.extConfig.use_openai_endpoint) {
             return;
         }
 
         // else, make a request to the API to prepare for the next FIM
         axios.post<LlamaResponse>(
-            `${this.extConfig.endpoint}/infill`,
+            `${this.app.extConfig.endpoint}/infill`,
             this.createRequestPayload(true, "", "", chunks, "", undefined),
-            this.extConfig.axiosRequestConfig
+            this.app.extConfig.axiosRequestConfig
         );
     };
 }
