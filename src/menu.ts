@@ -21,6 +21,12 @@ export class Menu {
                 label: "$(gear) Edit Settings...",
             },
             {
+                label: "$(gear) Start llama.cpp server",
+            },
+            {
+                label: "$(gear) Stop llama.cpp server",
+            },
+            {
                 label: "$(book) View Documentation...",
             }
         ].filter(Boolean) as vscode.QuickPickItem[];
@@ -30,6 +36,12 @@ export class Menu {
         switch (selected.label) {
             case "$(gear) Edit Settings...":
                 await vscode.commands.executeCommand('workbench.action.openSettings', 'llama-vscode');
+                break;
+            case "$(gear) Start llama.cpp server":
+                await this.app.llamaServer.launchCmd();
+                break;
+            case "$(gear) Stop llama.cpp server":
+                await this.app.llamaServer.killCmd();
                 break;
             case "$(book) View Documentation...":
                 await vscode.env.openExternal(vscode.Uri.parse('https://github.com/ggml-org/llama.vscode'));

@@ -1,5 +1,7 @@
 import axios from "axios";
 import {Application} from "./application";
+import { EventEmitter } from 'events';
+import * as cp from 'child_process';
 
 const STATUS_OK = 200;
 
@@ -21,6 +23,9 @@ export interface LlamaResponse {
 export class LlamaServer {
     // private extConfig: Configuration;
     private app: Application
+    private childProcess: cp.ChildProcess | undefined;
+    private childProcessStdErr: string = "";
+    private eventEmitter: EventEmitter;
     private readonly defaultRequestParams = {
         top_k: 40,
         top_p: 0.99,
@@ -31,6 +36,7 @@ export class LlamaServer {
 
     constructor(application: Application) {
         this.app = application;
+        this.eventEmitter = new EventEmitter();
     }
 
     private replacePlaceholders(template: string, replacements: { [key: string]: string }): string {
@@ -145,4 +151,61 @@ export class LlamaServer {
             this.app.extConfig.axiosRequestConfig
         );
     };
+
+    onlaunchCmdClose = (callback: (data: { code: number, stderr: string }) => void): void => {
+        this.eventEmitter.on('processClosed', callback);
+    }
+
+    launchCmd = (): void => {
+        const launchCmd = this.app.extConfig.launch_cmd;
+        if (!launchCmd) {
+            return;
+        }
+
+        if (process.platform == 'win32'){
+            this.childProcess = cp.spawn(launchCmd, [], { shell: true, stdio: 'inherit', detached: true});
+            if (this.childProcess.stderr) {
+                this.childProcess.stderr.on('data', (data) => {
+                    this.childProcessStdErr += data;
+                });
+            }
+            this.childProcess.on('close', (code) => {
+                this.eventEmitter.emit('processClosed', { code, stderr: this.childProcessStdErr });
+                this.childProcessStdErr = "";
+            });
+        } else if (process.platform === 'darwin') {
+            const child = cp.spawn('osascript', [
+                '-e',
+                `tell application "Terminal" to do script "${launchCmd}"`
+              ], {
+                detached: true,
+                stdio: 'inherit'
+              });
+        } else if (process.platform === 'linux') {
+            const child = cp.spawn('gnome-terminal', [
+                '--',
+                'bash',
+                '-c',
+                `${launchCmd}; exec bash`
+              ], {
+                detached: true,
+                stdio: 'ignore'
+              }); 
+              child.unref();
+        }
+    }
+
+    killCmd = (): void => {
+        if (process.platform === 'win32') { 
+            cp.exec(`taskkill /pid ${this.childProcess?.pid} /T /F`, (err, stdout, stderr) => {
+                if (err) {
+                  console.error('Failed to kill process llama-server:', err);
+                } else {
+                  console.log('Process tree llama-server terminated.');
+                }
+              });
+            } else { 
+                if (this.childProcess?.pid) process.kill(-this.childProcess.pid, 'SIGTERM');
+        }
+    }        
 }

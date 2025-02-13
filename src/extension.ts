@@ -4,6 +4,7 @@ import {Application} from "./application";
 export function activate(context: vscode.ExtensionContext) {
     let app = Application.getInstance();
     app.architect.setStatusBar(context)
+    // app.architect.setLaunchCmd(context)
     app.architect.setOnChangeConfiguration(context);
     app.architect.setCompletionProvider(context);
     app.architect.registerCommandManualCompletion(context);

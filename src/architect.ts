@@ -74,7 +74,21 @@ export class Architect {
         context.subscriptions.push(acceptFirstWordCommand);
     }
 
+    // setLaunchCmd = (context: vscode.ExtensionContext) => {
+    //     let configurationChangeDisp = vscode.workspace.onDidChangeConfiguration((event) => {
+    //         if (event.affectsConfiguration("llama-vscode.launch_cmd")) {
+    //             this.app.llamaServer.killCmd();
+    //             this.app.llamaServer.launchCmd();
+    //         }
+    //     });
+    //     context.subscriptions.push(configurationChangeDisp);
 
+    //     this.app.llamaServer.onlaunchCmdClose((data) => {
+    //         vscode.window.showErrorMessage(`llama-vscode launchCmd Process closed, code: ${data.code}, stderr: ${data.stderr}`);
+    //     });
+
+    //     this.app.llamaServer.launchCmd();
+    // }
 
     setPeriodicRingBufferUpdate = (context: vscode.ExtensionContext) => {
         const ringBufferIntervalId = setInterval(this.app.extraContext.periodicRingBufferUpdate, this.app.extConfig.ring_update_ms);
