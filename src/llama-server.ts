@@ -2,6 +2,7 @@ import axios from "axios";
 import {Application} from "./application";
 import { EventEmitter } from 'events';
 import * as cp from 'child_process';
+import vscode from "vscode";
 
 const STATUS_OK = 200;
 
@@ -161,7 +162,12 @@ export class LlamaServer {
             return;
         }
 
+        // const terminal = vscode.window.createTerminal({
+        //     name: 'llama.cpp Command Terminal'
+        // });
+        // terminal.show(true);
         if (process.platform == 'win32'){
+            // terminal.sendText(launchCmd);
             this.childProcess = cp.spawn(launchCmd, [], { shell: true, stdio: 'inherit', detached: true});
             if (this.childProcess.stderr) {
                 this.childProcess.stderr.on('data', (data) => {
@@ -173,7 +179,7 @@ export class LlamaServer {
                 this.childProcessStdErr = "";
             });
         } else if (process.platform === 'darwin') {
-            const child = cp.spawn('osascript', [
+            this.childProcess = cp.spawn('osascript', [
                 '-e',
                 `tell application "Terminal" to do script "${launchCmd}"`
               ], {
@@ -181,7 +187,7 @@ export class LlamaServer {
                 stdio: 'inherit'
               });
         } else if (process.platform === 'linux') {
-            const child = cp.spawn('gnome-terminal', [
+            this.childProcess = cp.spawn('gnome-terminal', [
                 '--',
                 'bash',
                 '-c',
@@ -189,8 +195,11 @@ export class LlamaServer {
               ], {
                 detached: true,
                 stdio: 'ignore'
-              }); 
-              child.unref();
+              });
+              this.childProcess.unref();
+            
+            // // Send the shell command to the terminal
+            // terminal.sendText(launchCmd);
         }
     }
 
@@ -204,8 +213,10 @@ export class LlamaServer {
                   console.log('Process tree llama-server terminated.');
                 }
               });
-            } else { 
+            } else if (process.platform == "linux") { 
+                cp.spawn('kill', ['--signal', 'SIGTERM', String(this.childProcess.pid)]);
+            } else if(process.platform == "darwin"){
                 if (this.childProcess?.pid) process.kill(-this.childProcess.pid, 'SIGTERM');
-        }
+            }
     }        
 }

@@ -8,8 +8,7 @@ export class Menu {
     }
 
     createMenuItems = (currentLanguage: string | undefined, isLanguageEnabled: boolean): vscode.QuickPickItem[] => {
-        
-        return [
+        let menuItems = [
             {
                 label: `${this.app.extConfig.enabled ? 'Disable' : 'Enable'} All Completions`,
                 description: `Turn ${this.app.extConfig.enabled ? 'off' : 'on'} completions globally`
@@ -22,33 +21,43 @@ export class Menu {
                 label: "$(gear) Edit Settings...",
             },
             {
-                label: "Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (mac only, <= 8GB VRAM)",
-                description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
-            },
-            {
-                label: "Start model Qwen2.5-Coder-3B-Q8_0-GGUF (mac only, <= 16GB VRAM)",
-                description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
-            },
-            {
-                label: "Start model Qwen2.5-Coder-7B-Q8_0-GGUF (mac only, > 16GB VRAM)",
-                description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
-            },
-            {
-                label: "Stop llama.cpp server",
-                description: `Stops llama.cpp server if it was started from llama.vscode menu."`
-            },
-            {
-                label: "Start llama.cpp server with custom command from launch_cmd property",
-                description: `Runs the command from property launch_cmd`
-            },
-            {
-                label: "Uninstall llama.cpp server (mac only)",
-                description: `Requires brew, runs "brew uninstall llama.cpp"`
-            },
-            {
                 label: "$(book) View Documentation...",
+            }]
+
+            if (process.platform === 'darwin') { // if mac os
+                menuItems.push({
+                    label: "Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (<= 8GB VRAM)",
+                    description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
+                },
+                    {
+                        label: "Start model Qwen2.5-Coder-3B-Q8_0-GGUF (<= 16GB VRAM)",
+                        description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
+                    },
+                    {
+                        label: "Start model Qwen2.5-Coder-7B-Q8_0-GGUF (> 16GB VRAM)",
+                        description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
+                    })
             }
-        ].filter(Boolean) as vscode.QuickPickItem[];
+
+            menuItems.push({
+                    label: "Start llama.cpp server with custom command from launch_cmd property",
+                    description: `Runs the command from property launch_cmd`
+                },
+                {
+                    label: "Stop llama.cpp server",
+                    description: `Stops llama.cpp server if it was started from llama.vscode menu."`
+                })
+
+            if (process.platform === 'darwin') { // if mac os
+                menuItems.push({
+                    label: "Uninstall llama.cpp server",
+                    description: `Requires brew, runs "brew uninstall llama.cpp"`
+                })
+            }
+            
+            
+
+        return menuItems.filter(Boolean) as vscode.QuickPickItem[];
     }
 
     handleMenuSelection = async (selected: vscode.QuickPickItem, currentLanguage: string | undefined, languageSettings: Record<string, boolean>) => {
@@ -58,26 +67,26 @@ export class Menu {
             case "$(gear) Edit Settings...":
                 await vscode.commands.executeCommand('workbench.action.openSettings', 'llama-vscode');
                 break;
-            case "$(gear) Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (mac only, <= 8GB VRAM)":
+            case "$(gear) Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (<= 8GB VRAM)":
                 await this.app.llamaServer.killCmd();
                 await this.app.llamaServer.shellCmd(llmModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"));
                 break;
-            case "$(gear) Start model Qwen2.5-Coder-3B-Q8_0-GGUF (mac only, <= 16GB VRAM)":
+            case "Start model Qwen2.5-Coder-3B-Q8_0-GGUF (<= 16GB VRAM)":
                 await this.app.llamaServer.killCmd();
                 await this.app.llamaServer.shellCmd(llmModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-3B-Q8_0-GGUF"));
                 break;
-            case "$(gear) Start model Qwen2.5-Coder-7B-Q8_0-GGUF (mac only, > 16GB VRAM)":
+            case "Start model Qwen2.5-Coder-7B-Q8_0-GGUF (> 16GB VRAM)":
                 await this.app.llamaServer.killCmd();
                 await this.app.llamaServer.shellCmd(llmModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-7B-Q8_0-GGUF"));
                 break;  
-            case "$(gear) Start llama.cpp server with custom command from launch_cmd property":
+            case "Start llama.cpp server with custom command from launch_cmd property":
                 await this.app.llamaServer.killCmd();
                 await this.app.llamaServer.shellCmd(this.app.extConfig.launch_cmd);
                 break;      
-            case "$(gear) Stop llama.cpp server":
+            case "Stop llama.cpp server":
                 await this.app.llamaServer.killCmd();
                 break;
-            case "$(gear) Uninstall llama.cpp server (mac only)":
+            case "Uninstall llama.cpp server":
                 await this.app.llamaServer.shellCmd("brew uninstall llama.cpp");
                 break;
             case "$(book) View Documentation...":
