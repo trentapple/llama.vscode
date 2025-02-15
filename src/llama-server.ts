@@ -156,8 +156,7 @@ export class LlamaServer {
         this.eventEmitter.on('processClosed', callback);
     }
 
-    launchCmd = (): void => {
-        const launchCmd = this.app.extConfig.launch_cmd;
+    shellCmd = (launchCmd: string): void => {
         if (!launchCmd) {
             return;
         }
@@ -196,6 +195,7 @@ export class LlamaServer {
     }
 
     killCmd = (): void => {
+        if (!this.childProcess) return;
         if (process.platform === 'win32') { 
             cp.exec(`taskkill /pid ${this.childProcess?.pid} /T /F`, (err, stdout, stderr) => {
                 if (err) {
