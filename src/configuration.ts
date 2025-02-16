@@ -7,6 +7,7 @@ export class Configuration {
     launch_cmd = ""
     endpoint = "http=//127.0.0.1:8012";
     auto = true;
+    external_terminal = false;
     api_key = "";
     n_prefix = 256;
     n_suffix = 64;
@@ -98,6 +99,7 @@ export class Configuration {
         this.openai_client_model = String(config.get<string>("openai_client_model"));
         this.openai_prompt_template = String(config.get<string>("openai_prompt_template"));
         this.auto = Boolean(config.get<boolean>("auto"));
+        this.external_terminal = Boolean(config.get<boolean>("external_terminal"));
         this.api_key = String(config.get<string>("api_key"));
         this.n_prefix = Number(config.get<number>("n_prefix"));
         this.n_suffix = Number(config.get<number>("n_suffix"));

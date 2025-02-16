@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import {Application} from "./application";
 
+let app: Application
 export function activate(context: vscode.ExtensionContext) {
-    let app = Application.getInstance();
+    app = Application.getInstance();
     app.architect.setStatusBar(context)
-    // app.architect.setLaunchCmd(context)
     app.architect.setOnChangeConfiguration(context);
     app.architect.setCompletionProvider(context);
     app.architect.registerCommandManualCompletion(context);
@@ -19,5 +19,6 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-    // Nothing to do. VS Code will dispose all registerd disposables
+    // VS Code will dispose all registerd disposables
+    app.llamaServer.killCmd();
 }
