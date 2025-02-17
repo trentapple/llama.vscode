@@ -61,7 +61,7 @@ export class Menu {
     }
 
     handleMenuSelection = async (selected: vscode.QuickPickItem, currentLanguage: string | undefined, languageSettings: Record<string, boolean>) => {
-        let llmModelTemplate = "brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port 8012 -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256"
+        let llmModelTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port 8012 -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256"
         let modelPlaceholder = "[model]";
         switch (selected.label) {
             case "$(gear) Edit Settings...":
