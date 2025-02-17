@@ -1,7 +1,6 @@
 import axios from "axios";
 import {Application} from "./application";
 import { EventEmitter } from 'events';
-import * as cp from 'child_process';
 import vscode, { Terminal } from "vscode";
 
 const STATUS_OK = 200;
@@ -24,10 +23,7 @@ export interface LlamaResponse {
 export class LlamaServer {
     // private extConfig: Configuration;
     private app: Application
-    private childProcess: cp.ChildProcess | undefined;
-    private uniqueTerminalTitle = "llama.vscode-llama.cpp-server";
     private vsCodeTerminal: Terminal | undefined;
-    private childProcessStdErr: string = "";
     private eventEmitter: EventEmitter;
     private readonly defaultRequestParams = {
         top_k: 40,
@@ -164,114 +160,14 @@ export class LlamaServer {
         if (!launchCmd) {
             return;
         }
-        if (!this.app.extConfig.external_terminal){
-            this.vsCodeTerminal = vscode.window.createTerminal({
-                name: 'llama.cpp Command Terminal'
-            });
-            this.vsCodeTerminal.show(true);
-            this.vsCodeTerminal.sendText(launchCmd);
-            return
-        }
-    
-        if (process.platform == 'win32'){          
-            this.childProcess = cp.spawn(launchCmd, [], { shell: true, stdio: 'inherit', detached: true});
-            if (this.childProcess.stderr) {
-                this.childProcess.stderr.on('data', (data) => {
-                    this.childProcessStdErr += data;
-                });
-            }
-            this.childProcess.on('close', (code) => {
-                this.eventEmitter.emit('processClosed', { code, stderr: this.childProcessStdErr });
-                this.childProcessStdErr = "";
-            });
-        } else if (process.platform === 'darwin') {
-            // this.childProcess = cp.spawn('osascript', [
-            //     '-e',
-            //     `tell application "Terminal" to do script "${launchCmd}"`
-            //   ], {
-            //     detached: true,
-            //     stdio: 'inherit'
-            //   });
-            
-            const startScript = `
-            tell application "Terminal"
-                activate
-                set newTab to do script "echo 'Running command'; ${launchCmd}"
-                delay 0.5 -- give Terminal time to create the tab/window
-                set custom title of newTab to "${this.uniqueTerminalTitle}"
-            end tell
-            `;
-
-            cp.exec(`osascript -e '${startScript}'`, (error, stdout, stderr) => {
-            if (error) {
-                console.error("Error launching Terminal:", error);
-            }
-            });
-        } else if (process.platform === 'linux') {
-            this.childProcess = cp.spawn('gnome-terminal', [
-                '--disable-factory', // Force a new terminal instance
-                '--',
-                'bash',
-                '-c',
-                `${launchCmd}; exec bash`
-              ], {
-                detached: true,
-                stdio: 'ignore'
-              });
-              this.childProcess.unref()
-            
-            // // Send the shell command to the terminal
-            // terminal.sendText(launchCmd);
-        }
+        this.vsCodeTerminal = vscode.window.createTerminal({
+            name: 'llama.cpp Command Terminal'
+        });
+        this.vsCodeTerminal.show(true);
+        this.vsCodeTerminal.sendText(launchCmd);
     }
 
     killCmd = (): void => {       
-        if (!this.app.extConfig.external_terminal){
-            if (this.vsCodeTerminal) this.vsCodeTerminal.dispose();
-            return;
-        }
-        if (!this.childProcess) return;
-        if (process.platform === 'win32') { 
-            cp.exec(`taskkill /pid ${this.childProcess?.pid} /T /F`, (err, stdout, stderr) => {
-                if (err) {
-                  console.error('Failed to kill process llama-server:', err);
-                } else {
-                  console.log('Process tree llama-server terminated.');
-                }   
-              });
-            } else if (process.platform == "linux") { 
-                if (this.childProcess && this.childProcess.pid) {
-                    let pid = this.childProcess.pid == undefined ? 0 : this.childProcess.pid
-                    try {
-                        process.kill(-this.childProcess.pid, 'SIGTERM'); // Try SIGTERM first
-                        setTimeout(() => process.kill(-pid, 'SIGKILL'), 1000); // Force kill if needed
-                    } catch (err) {
-                        console.error('Failed to kill process:', err);
-                    }
-                }
-            } else if(process.platform == "darwin"){
-                const killScript = `
-                    tell application "Terminal"
-                        set winList to every window
-                        repeat with w in winList
-                        set tabList to tabs of w
-                        repeat with t in tabList
-                            try
-                            if custom title of t is equal to "${this.uniqueTerminalTitle}" then
-                                close t
-                                exit repeat
-                            end if
-                            end try
-                        end repeat
-                        end repeat
-                    end tell
-                    `;
-
-                cp.exec(`osascript -e '${killScript}'`, (error, stdout, stderr) => {
-                if (error) {
-                    console.error("Error closing Terminal:", error);
-                }
-                });
-            }
+        if (this.vsCodeTerminal) this.vsCodeTerminal.dispose();
     }        
 }

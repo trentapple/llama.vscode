@@ -119,11 +119,6 @@
           "default": true,
           "description": "If code completion should be trggered automatically (true) or only by pressing Ctrl+l."
         },
-        "llama-vscode.external_terminal": {
-          "type": "boolean",
-          "default": false,
-          "description": "true - use external terminal for launching llama.cpp server, false - use VS Code terminal."
-        },
         "llama-vscode.api_key": {
           "type": "string",
           "default": "",
