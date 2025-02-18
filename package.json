@@ -116,8 +116,8 @@
       "properties": {
         "llama-vscode.launch_cmd": {
           "type": "string",
-          "default": "cd C:/ai ; ./llama-server.exe -m C:/AI/Qwen2.5-Coder-1.5B.Q8_0.gguf --host 0.0.0.0 --port 8012 -c 2048 -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256",
-          "description": "Shell command executed on Plugin start."
+          "default": "",
+          "description": "Shell command executed from menu"
         },
         "llama-vscode.endpoint": {
           "type": "string",
