@@ -36,6 +36,14 @@ export class Menu {
                     {
                         label: "Start model Qwen2.5-Coder-7B-Q8_0-GGUF (> 16GB VRAM)",
                         description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
+                    },
+                    {
+                        label: "Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (CPU Only)",
+                        description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
+                    }, 
+                    {
+                        label: "Start model Qwen2.5-Coder-0.5B-Q8_0-GGUF (CPU Only)",
+                        description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
                     })
             }
 
@@ -61,7 +69,8 @@ export class Menu {
     }
 
     handleMenuSelection = async (selected: vscode.QuickPickItem, currentLanguage: string | undefined, languageSettings: Record<string, boolean>) => {
-        let llmModelTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port 8012 -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256"
+        let llmMacVramModelTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port 8012 -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256"
+        let llmMacCpuTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port 8012 -c 2048 -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256"
         let modelPlaceholder = "[model]";
         switch (selected.label) {
             case "$(gear) Edit Settings...":
@@ -69,16 +78,24 @@ export class Menu {
                 break;
             case "$(gear) Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (<= 8GB VRAM)":
                 await this.app.llamaServer.killCmd();
-                await this.app.llamaServer.shellCmd(llmModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"));
+                await this.app.llamaServer.shellCmd(llmMacVramModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"));
                 break;
             case "Start model Qwen2.5-Coder-3B-Q8_0-GGUF (<= 16GB VRAM)":
                 await this.app.llamaServer.killCmd();
-                await this.app.llamaServer.shellCmd(llmModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-3B-Q8_0-GGUF"));
+                await this.app.llamaServer.shellCmd(llmMacVramModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-3B-Q8_0-GGUF"));
                 break;
             case "Start model Qwen2.5-Coder-7B-Q8_0-GGUF (> 16GB VRAM)":
                 await this.app.llamaServer.killCmd();
-                await this.app.llamaServer.shellCmd(llmModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-7B-Q8_0-GGUF"));
+                await this.app.llamaServer.shellCmd(llmMacVramModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-7B-Q8_0-GGUF"));
                 break;  
+            case "Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (CPU Only)":
+                await this.app.llamaServer.killCmd();
+                await this.app.llamaServer.shellCmd(llmMacCpuTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"));
+                break;
+            case "Start model Qwen2.5-Coder-0.5B-Q8_0-GGUF (CPU Only)":
+                await this.app.llamaServer.killCmd();
+                await this.app.llamaServer.shellCmd(llmMacCpuTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-0.5B-Q8_0-GGUF"));
+                break;
             case "Start llama.cpp server with custom command from launch_cmd property":
                 await this.app.llamaServer.killCmd();
                 await this.app.llamaServer.shellCmd(this.app.extConfig.launch_cmd);
@@ -87,7 +104,7 @@ export class Menu {
                 await this.app.llamaServer.killCmd();
                 break;
             case "Uninstall llama.cpp server":
-                await this.app.llamaServer.shellCmd("brew uninstall llama.cpp");
+                await this.app.llamaServer.shellCmd(" brew uninstall llama.cpp");
                 break;
             case "$(book) View Documentation...":
                 await vscode.env.openExternal(vscode.Uri.parse('https://github.com/ggml-org/llama.vscode'));
