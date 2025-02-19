@@ -69,8 +69,12 @@ export class Menu {
     }
 
     handleMenuSelection = async (selected: vscode.QuickPickItem, currentLanguage: string | undefined, languageSettings: Record<string, boolean>) => {
-        let llmMacVramModelTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port 8012 -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256"
-        let llmMacCpuTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port 8012 -c 2048 -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256"
+        const DEFAULT_PPORT_FIM_MODEL = "8012"
+        let endpointParts = this.app.extConfig.endpoint.split(":");
+        let port = endpointParts[endpointParts.length -1]
+        if (!Number.isInteger(Number(port))) port =  DEFAULT_PPORT_FIM_MODEL
+        let llmMacVramModelTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port " + port + " -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256"
+        let llmMacCpuTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port " + port + " -c 2048 -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256"
         let modelPlaceholder = "[model]";
         switch (selected.label) {
             case "$(gear) Edit Settings...":
