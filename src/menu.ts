@@ -69,36 +69,38 @@ export class Menu {
     }
 
     handleMenuSelection = async (selected: vscode.QuickPickItem, currentLanguage: string | undefined, languageSettings: Record<string, boolean>) => {
-        const DEFAULT_PPORT_FIM_MODEL = "8012"
+        const DEFAULT_PORT_FIM_MODEL = "8012"
+        const PRESET_PLACEHOLDER = "[preset]";
+        const MODEL_PLACEHOLDER = "[model]"
         let endpointParts = this.app.extConfig.endpoint.split(":");
         let port = endpointParts[endpointParts.length -1]
-        if (!Number.isInteger(Number(port))) port =  DEFAULT_PPORT_FIM_MODEL
-        let llmMacVramModelTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port " + port + " -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256"
-        let llmMacCpuTemplate = " brew install llama.cpp && brew upgrade llama.cpp && llama-server -hf [model] --port " + port + " -c 2048 -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256"
-        let modelPlaceholder = "[model]";
+        if (!Number.isInteger(Number(port))) port =  DEFAULT_PORT_FIM_MODEL
+        let llmMacVramTemplate = " brew install llama.cpp && llama-server --" + PRESET_PLACEHOLDER + " --port " + port 
+        let llmMacCpuTemplate = " brew install llama.cpp && llama-server -hf " + MODEL_PLACEHOLDER + " --port " + port + " -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256"
+        
         switch (selected.label) {
             case "$(gear) Edit Settings...":
                 await vscode.commands.executeCommand('workbench.action.openSettings', 'llama-vscode');
                 break;
             case "$(gear) Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (<= 8GB VRAM)":
                 await this.app.llamaServer.killCmd();
-                await this.app.llamaServer.shellCmd(llmMacVramModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"));
+                await this.app.llamaServer.shellCmd(llmMacVramTemplate.replace(PRESET_PLACEHOLDER, "fim-qwen-1.5b-default"));
                 break;
             case "Start model Qwen2.5-Coder-3B-Q8_0-GGUF (<= 16GB VRAM)":
                 await this.app.llamaServer.killCmd();
-                await this.app.llamaServer.shellCmd(llmMacVramModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-3B-Q8_0-GGUF"));
+                await this.app.llamaServer.shellCmd(llmMacVramTemplate.replace(PRESET_PLACEHOLDER, "fim-qwen-3b-default"));
                 break;
             case "Start model Qwen2.5-Coder-7B-Q8_0-GGUF (> 16GB VRAM)":
                 await this.app.llamaServer.killCmd();
-                await this.app.llamaServer.shellCmd(llmMacVramModelTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-7B-Q8_0-GGUF"));
+                await this.app.llamaServer.shellCmd(llmMacVramTemplate.replace(PRESET_PLACEHOLDER, "fim-qwen-7b-default"));
                 break;  
             case "Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (CPU Only)":
                 await this.app.llamaServer.killCmd();
-                await this.app.llamaServer.shellCmd(llmMacCpuTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"));
+                await this.app.llamaServer.shellCmd(llmMacCpuTemplate.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"));
                 break;
             case "Start model Qwen2.5-Coder-0.5B-Q8_0-GGUF (CPU Only)":
                 await this.app.llamaServer.killCmd();
-                await this.app.llamaServer.shellCmd(llmMacCpuTemplate.replace(modelPlaceholder, "ggml-org/Qwen2.5-Coder-0.5B-Q8_0-GGUF"));
+                await this.app.llamaServer.shellCmd(llmMacCpuTemplate.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen2.5-Coder-0.5B-Q8_0-GGUF"));
                 break;
             case "Start llama.cpp server with custom command from launch_cmd property":
                 await this.app.llamaServer.killCmd();
