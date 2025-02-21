@@ -4,6 +4,7 @@ import OpenAI from "openai";
 export class Configuration {
     // extension configs
     enabled = true;
+    launch_cmd = ""
     endpoint = "http=//127.0.0.1:8012";
     auto = true;
     api_key = "";
@@ -92,6 +93,7 @@ export class Configuration {
     private updateConfigs = (config: vscode.WorkspaceConfiguration) => {
         // TODO Handle the case of wrong types for the configuration values
         this.endpoint = this.trimTrailingSlash(String(config.get<string>("endpoint")));
+        this.launch_cmd = String(config.get<string>("launch_cmd"));
         this.use_openai_endpoint = Boolean(config.get<boolean>("use_openai_endpoint"));
         this.openai_client_model = String(config.get<string>("openai_client_model"));
         this.openai_prompt_template = String(config.get<string>("openai_prompt_template"));

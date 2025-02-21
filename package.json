@@ -56,6 +56,10 @@
       {
         "command": "extension.copyChunks",
         "title": "Copy Chunks"
+      },
+      {
+        "command": "extension.showMenu",
+        "title": "Show Menu"
       }
     ],
     "keybindings": [
@@ -77,7 +81,7 @@
       {
         "command": "extension.copyChunks",
         "key": "ctrl+shift+,",
-        "when": "editorTextFocus"
+        "when": "true"
       },
       {
         "command": "extension.copyIntercept",
@@ -99,11 +103,22 @@
         "key": "ctrl+right",
         "when": "editorTextFocus && inlineSuggestionVisible"
       }
+      ,
+      {
+        "command": "extension.showMenu",
+        "key": "ctrl+shift+m",
+        "when": "true"
+      }
     ],
     "configuration": {
       "type": "object",
       "title": "llama.vscode Configuration",
       "properties": {
+        "llama-vscode.launch_cmd": {
+          "type": "string",
+          "default": "",
+          "description": "Shell command executed from menu"
+        },
         "llama-vscode.endpoint": {
           "type": "string",
           "default": "http://127.0.0.1:8012",

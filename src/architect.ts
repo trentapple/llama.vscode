@@ -74,7 +74,15 @@ export class Architect {
         context.subscriptions.push(acceptFirstWordCommand);
     }
 
-
+    registerCommandShowMenu = (context: vscode.ExtensionContext) => {
+        const showMenuCommand = vscode.commands.registerCommand(
+            'extension.showMenu',
+            async () => {
+                await this.app.menu.showMenu();
+            }
+        );
+        context.subscriptions.push(showMenuCommand);
+    }
 
     setPeriodicRingBufferUpdate = (context: vscode.ExtensionContext) => {
         const ringBufferIntervalId = setInterval(this.app.extraContext.periodicRingBufferUpdate, this.app.extConfig.ring_update_ms);

@@ -1,5 +1,7 @@
 import axios from "axios";
 import {Application} from "./application";
+import { EventEmitter } from 'events';
+import vscode, { Terminal } from "vscode";
 
 const STATUS_OK = 200;
 
@@ -21,6 +23,8 @@ export interface LlamaResponse {
 export class LlamaServer {
     // private extConfig: Configuration;
     private app: Application
+    private vsCodeTerminal: Terminal | undefined;
+    private eventEmitter: EventEmitter;
     private readonly defaultRequestParams = {
         top_k: 40,
         top_p: 0.99,
@@ -31,6 +35,8 @@ export class LlamaServer {
 
     constructor(application: Application) {
         this.app = application;
+        this.eventEmitter = new EventEmitter();
+        this.vsCodeTerminal = undefined;
     }
 
     private replacePlaceholders(template: string, replacements: { [key: string]: string }): string {
@@ -145,4 +151,23 @@ export class LlamaServer {
             this.app.extConfig.axiosRequestConfig
         );
     };
+
+    onlaunchCmdClose = (callback: (data: { code: number, stderr: string }) => void): void => {
+        this.eventEmitter.on('processClosed', callback);
+    }
+
+    shellCmd = (launchCmd: string): void => {
+        if (!launchCmd) {
+            return;
+        }
+        this.vsCodeTerminal = vscode.window.createTerminal({
+            name: 'llama.cpp Command Terminal'
+        });
+        this.vsCodeTerminal.show(true);
+        this.vsCodeTerminal.sendText(launchCmd);
+    }
+
+    killCmd = (): void => {       
+        if (this.vsCodeTerminal) this.vsCodeTerminal.dispose();
+    }        
 }
