@@ -24,46 +24,39 @@ export class Menu {
                 label: "$(book) View Documentation...",
             }]
 
-            if (process.platform === 'darwin') { // if mac os
-                menuItems.push({
+        if (process.platform === 'darwin') { // if mac os
+            menuItems.push(
+                {
                     label: "Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (<= 8GB VRAM)",
                     description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
                 },
-                    {
-                        label: "Start model Qwen2.5-Coder-3B-Q8_0-GGUF (<= 16GB VRAM)",
-                        description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
-                    },
-                    {
-                        label: "Start model Qwen2.5-Coder-7B-Q8_0-GGUF (> 16GB VRAM)",
-                        description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
-                    },
-                    {
-                        label: "Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (CPU Only)",
-                        description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
-                    }, 
-                    {
-                        label: "Start model Qwen2.5-Coder-0.5B-Q8_0-GGUF (CPU Only)",
-                        description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
-                    })
-            }
-
-            menuItems.push({
-                    label: "Start llama.cpp server with custom command from launch_cmd property",
-                    description: `Runs the command from property launch_cmd`
+                {
+                    label: "Start model Qwen2.5-Coder-3B-Q8_0-GGUF (<= 16GB VRAM)",
+                    description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
                 },
                 {
-                    label: "Stop llama.cpp server",
-                    description: `Stops llama.cpp server if it was started from llama.vscode menu."`
+                    label: "Start model Qwen2.5-Coder-7B-Q8_0-GGUF (> 16GB VRAM)",
+                    description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
+                },
+                {
+                    label: "Start model Qwen2.5-Coder-1.5B-Q8_0-GGUF (CPU Only)",
+                    description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
+                }, 
+                {
+                    label: "Start model Qwen2.5-Coder-0.5B-Q8_0-GGUF (CPU Only)",
+                    description: `Requires brew, installs/upgrades llama.cpp server, downloads the model if not available, and runs llama.cpp server`
                 })
+        }
 
-            if (process.platform === 'darwin') { // if mac os
-                menuItems.push({
-                    label: "Uninstall llama.cpp server",
-                    description: `Requires brew, runs "brew uninstall llama.cpp"`
-                })
-            }
-            
-            
+        menuItems.push(
+            {
+                label: "Start llama.cpp server with custom command from launch_cmd property",
+                description: `Runs the command from property launch_cmd`
+            },
+            {
+                label: "Stop llama.cpp server",
+                description: `Stops llama.cpp server if it was started from llama.vscode menu."`
+            })     
 
         return menuItems.filter(Boolean) as vscode.QuickPickItem[];
     }
@@ -108,9 +101,6 @@ export class Menu {
                 break;      
             case "Stop llama.cpp server":
                 await this.app.llamaServer.killCmd();
-                break;
-            case "Uninstall llama.cpp server":
-                await this.app.llamaServer.shellCmd(" brew uninstall llama.cpp");
                 break;
             case "$(book) View Documentation...":
                 await vscode.env.openExternal(vscode.Uri.parse('https://github.com/ggml-org/llama.vscode'));

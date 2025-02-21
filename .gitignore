@@ -3,8 +3,4 @@ dist
 node_modules
 .vscode-test/
 *.vsix
-.idea/vcs.xml
-.idea/workspace.xml
-.idea/codeStyles/codeStyleConfig.xml
-.idea/codeStyles/Project.xml
-.idea/.gitignore
+.idea/
