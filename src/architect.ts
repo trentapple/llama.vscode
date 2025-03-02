@@ -1,8 +1,10 @@
 // TODO
-// Profiling
-// - Търсенето в кеша при 250 елемента и 49 символа отнема 1/5 милисекунда => може по-голям кеш, може търсене до началото на реда
-// - ShowInfo < 1/10 мс
+// Превод на меню и попъп съобщения на поддържаните езици + улесни превеждането - с ИИ.
 // Да не премигва при избор само на ред или дума (върни частично проверката за съвпадение с последния рекуест?)
+// Идеи
+// - Използване на агенти (?)
+// - използване lSP
+// - използване на MCP
 import * as vscode from 'vscode';
 import {Application} from "./application";
 
@@ -78,7 +80,7 @@ export class Architect {
         const showMenuCommand = vscode.commands.registerCommand(
             'extension.showMenu',
             async () => {
-                await this.app.menu.showMenu();
+                await this.app.menu.showMenu(context);
             }
         );
         context.subscriptions.push(showMenuCommand);
@@ -89,7 +91,6 @@ export class Architect {
         const rungBufferUpdateDisposable = {
             dispose: () => {
                 clearInterval(ringBufferIntervalId);
-                console.log('Periodic Task Extension has been deactivated. Interval cleared.');
             }
         };
         context.subscriptions.push(rungBufferUpdateDisposable);
@@ -203,8 +204,50 @@ export class Architect {
         this.app.statusbar.initializeStatusBar();
         this.app.statusbar.registerEventListeners(context);
 
-        context.subscriptions.push(
-            vscode.commands.registerCommand('llama-vscode.showMenu', this.app.menu.showMenu)
+        context.subscriptions.push(vscode.commands.registerCommand('llama-vscode.showMenu', async () => {
+                await this.app.menu.showMenu(context);
+            })
         );
+    }
+
+    registerCommandAskAi = (context: vscode.ExtensionContext) => {
+        const triggerAskAiDisposable = vscode.commands.registerCommand('extension.askAi', async () => {
+            if (!vscode.window.activeTextEditor) {
+                vscode.window.showErrorMessage('No active editor!');
+                return;
+            }
+
+            if (!this.app.extConfig.endpoint_chat) return;
+
+            this.app.askAi.showChatWithAi(false, context);
+        });
+        context.subscriptions.push(triggerAskAiDisposable);
+    }
+
+    registerCommandAskAiWithContext = (context: vscode.ExtensionContext) => {
+        const triggerAskAiDisposable = vscode.commands.registerCommand('extension.askAiWithContext', async () => {
+            if (!vscode.window.activeTextEditor) {
+                vscode.window.showErrorMessage('No active editor!');
+                return;
+            }
+
+            if (!this.app.extConfig.endpoint_chat) return;
+
+            const editor = vscode.window.activeTextEditor;
+            if (editor) {
+                // if editor is active in the UI, pick a chunk before sending extra context to the ai
+                let activeDocument = editor.document;
+                const selection = editor.selection;
+                const cursorPosition = selection.active;
+                // setTimeout(async () => {
+                this.app.extraContext.pickChunkAroundCursor(cursorPosition.line, activeDocument);
+                // }, 0);
+                // Ensure ring chunks buffer will be updated
+                this.app.extraContext.lastComplStartTime = Date.now() - this.app.extConfig.RING_UPDATE_MIN_TIME_LAST_COMPL - 1
+                this.app.extraContext.periodicRingBufferUpdate()
+            }
+            this.app.askAi.showChatWithAi(true, context);
+        });
+        context.subscriptions.push(triggerAskAiDisposable);
     }
 }

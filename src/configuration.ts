@@ -1,13 +1,18 @@
 import * as vscode from "vscode";
 import OpenAI from "openai";
+import https from "https";
+import fs from "fs";
 
 export class Configuration {
     // extension configs
     enabled = true;
-    launch_cmd = ""
+    launch_completion = ""
+    launch_chat = ""
     endpoint = "http=//127.0.0.1:8012";
+    endpoint_chat = "http=//127.0.0.1:8011";
     auto = true;
     api_key = "";
+    self_signed_certificate = "";
     n_prefix = 256;
     n_suffix = 64;
     n_predict = 128;
@@ -93,12 +98,15 @@ export class Configuration {
     private updateConfigs = (config: vscode.WorkspaceConfiguration) => {
         // TODO Handle the case of wrong types for the configuration values
         this.endpoint = this.trimTrailingSlash(String(config.get<string>("endpoint")));
-        this.launch_cmd = String(config.get<string>("launch_cmd"));
+        this.endpoint_chat = this.trimTrailingSlash(String(config.get<string>("endpoint_chat")));
+        this.launch_completion = String(config.get<string>("launch_completion"));
+        this.launch_chat = String(config.get<string>("launch_chat"));
         this.use_openai_endpoint = Boolean(config.get<boolean>("use_openai_endpoint"));
         this.openai_client_model = String(config.get<string>("openai_client_model"));
         this.openai_prompt_template = String(config.get<string>("openai_prompt_template"));
         this.auto = Boolean(config.get<boolean>("auto"));
         this.api_key = String(config.get<string>("api_key"));
+        this.self_signed_certificate = String(config.get<string>("self_signed_certificate"));
         this.n_prefix = Number(config.get<number>("n_prefix"));
         this.n_suffix = Number(config.get<number>("n_suffix"));
         this.n_predict = Number(config.get<number>("n_predict"));
@@ -125,7 +133,7 @@ export class Configuration {
 
     updateOnEvent = (event: vscode.ConfigurationChangeEvent, config: vscode.WorkspaceConfiguration) => {
         this.updateConfigs(config);
-        if (event.affectsConfiguration("llama-vscode.api_key")) {
+        if (event.affectsConfiguration("llama-vscode.api_key") || event.affectsConfiguration("llama-vscode.self_signed_certificate")) {
             this.setLlamaRequestConfig();
             this.setOpenAiClient();
         }
@@ -140,12 +148,21 @@ export class Configuration {
 
     setLlamaRequestConfig = () => {
         this.axiosRequestConfig = {};
-        if (this.api_key != undefined && this.api_key != "") {
+        if (this.api_key != undefined && this.api_key.trim() != "") {
             this.axiosRequestConfig = {
                 headers: {
-                    Authorization: `Bearer ${this.api_key}`,
+                    Authorization: `Bearer ${this.api_key.trim()}`,
                     "Content-Type": "application/json",
                 },
+            };
+        }
+        if (this.self_signed_certificate != undefined && this.self_signed_certificate.trim() != "") {
+            const httpsAgent = new https.Agent({
+                ca: fs.readFileSync(this.self_signed_certificate.trim()),
+            });
+            this.axiosRequestConfig = {
+                ...this.axiosRequestConfig,
+                httpsAgent,
             };
         }
     };
