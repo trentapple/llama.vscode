@@ -159,6 +159,17 @@ export class Architect {
         );
     }
 
+    registerGenarateCommitMsg = (context: vscode.ExtensionContext) => {
+        const generateCommitCommand = vscode.commands.registerCommand(
+            'extension.generateGitCommitMessage',
+            async () => {
+                await this.app.git.generateCommitMessage();
+            }
+        );
+        context.subscriptions.push(generateCommitCommand);
+    }
+
+
     registerCommandManualCompletion = (context: vscode.ExtensionContext) => {
         const triggerManualCompletionDisposable = vscode.commands.registerCommand('extension.triggerInlineCompletion', async () => {
             // Manual triggering of the completion with a shortcut
