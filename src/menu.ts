@@ -130,7 +130,8 @@ export class Menu {
         return menuItems.filter(Boolean) as vscode.QuickPickItem[];
     }
 
-    handleMenuSelection = async (selected: vscode.QuickPickItem, currentLanguage: string | undefined, languageSettings: Record<string, boolean>, context: vscode.ExtensionContext) => {       
+    handleMenuSelection = async (selected: vscode.QuickPickItem, currentLanguage: string | undefined, languageSettings: Record<string, boolean>, context: vscode.ExtensionContext) => {
+
         const PRESET_PLACEHOLDER = "[preset]";
         const MODEL_PLACEHOLDER = "[model]";
 
@@ -141,7 +142,8 @@ export class Menu {
         let llmMacTemplateChatVram = " brew install llama.cpp && llama-server -hf " + MODEL_PLACEHOLDER + " --port " + portChat + " -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256 "
         let llmMacTemplateChatCpu = " brew install llama.cpp && llama-server -hf " + MODEL_PLACEHOLDER + " --port " + portChat + " -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256"
         let llmMacTemplateEmbedding = " brew install llama.cpp && llama-server -hf " + MODEL_PLACEHOLDER + " --port " + portEmbedding + " -ub 2048 -b 2048 --ctx-size 2048 --embeddings"
-
+        let llmMacAllChatVram = " llama-server -hf " + MODEL_PLACEHOLDER + " --port " + portChat + " -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256 "
+        let llmMacAllEmbedding = " llama-server -hf " + MODEL_PLACEHOLDER + " --port " + portEmbedding + " -ub 2048 -b 2048 --ctx-size 2048 --embeddings"
         switch (selected.label) {
             case "$(gear) " +  this.app.extConfig.getUiText("Edit Settings..."):
                 await vscode.commands.executeCommand('workbench.action.openSettings', 'llama-vscode');
@@ -151,8 +153,8 @@ export class Menu {
                 await this.app.llamaServer.killChatCmd();
                 await this.app.llamaServer.killEmbeddingsCmd();
                 await this.app.llamaServer.shellFimCmd(llmMacTemplateVram.replace(PRESET_PLACEHOLDER, "fim-qwen-7b-default"));
-                await this.app.llamaServer.shellChatCmd(llmMacTemplateChatVram.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen3-8B-GGUF"));
-                await this.app.llamaServer.shellEmbeddingsCmd(llmMacTemplateEmbedding.replace(MODEL_PLACEHOLDER, "ggml-org/Nomic-Embed-Text-V2-GGUF"));
+                await this.app.llamaServer.shellChatCmd(llmMacAllChatVram.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen2.5-Coder-7B-Instruct-Q8_0-GGUF"));
+                await this.app.llamaServer.shellEmbeddingsCmd(llmMacAllEmbedding.replace(MODEL_PLACEHOLDER, "ggml-org/Nomic-Embed-Text-V2-GGUF"));
                 break;
             case this.app.extConfig.getUiText('Start completion model') + ' Qwen2.5-Coder-1.5B-Q8_0-GGUF (<= 8GB VRAM)':
                 await this.app.llamaServer.killFimCmd();
@@ -168,21 +170,21 @@ export class Menu {
                 break;
             case this.app.extConfig.getUiText('Start completion model') + ' Qwen2.5-Coder-1.5B-Q8_0-GGUF (CPU Only)':
                 await this.app.llamaServer.killFimCmd();
-                await this.app.llamaServer.shellFimCmd(llmMacTemplateCpu.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen2.5-Coder-0.5B-Instruct-Q8_0-GGUF"));
+                await this.app.llamaServer.shellFimCmd(llmMacTemplateCpu.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"));
                 break;
-            case this.app.extConfig.getUiText('Start chat model') + ' Qwen2.5-Coder-1.5B-Q8_0-GGUF (<= 8GB VRAM)':
+            case this.app.extConfig.getUiText('Start chat model') + ' Qwen2.5-Coder-1.5B-Instruct-Q8_0-GGUF (<= 8GB VRAM)':
                 await this.app.llamaServer.killChatCmd();
                 await this.app.llamaServer.shellChatCmd(llmMacTemplateChatVram.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen2.5-Coder-1.5B-Instruct-Q8_0-GGUF"));
                 break;
-            case this.app.extConfig.getUiText('Start chat model') + ' Qwen2.5-Coder-3B-Q8_0-GGUF (<= 16GB VRAM)':
+            case this.app.extConfig.getUiText('Start chat model') + ' Qwen2.5-Coder-3B-Instruct-Q8_0-GGUF (<= 16GB VRAM)':
                 await this.app.llamaServer.killChatCmd();
                 await this.app.llamaServer.shellChatCmd(llmMacTemplateChatVram.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen2.5-Coder-3B-Instruct-Q8_0-GGUF"));
                 break;
-            case this.app.extConfig.getUiText('Start chat model') + ' Qwen2.5-Coder-7B-Q8_0-GGUF (> 16GB VRAM)':
+            case this.app.extConfig.getUiText('Start chat model') + ' Qwen2.5-Coder-7B-Instruct-Q8_0-GGUF (> 16GB VRAM)':
                 await this.app.llamaServer.killChatCmd();
                 await this.app.llamaServer.shellChatCmd(llmMacTemplateChatVram.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen2.5-Coder-7B-Instruct-Q8_0-GGUF"));
                 break;
-            case this.app.extConfig.getUiText('Start chat model') + ' Qwen2.5-Coder-1.5B-Q8_0-GGUF (CPU Only)':
+            case this.app.extConfig.getUiText('Start chat model') + ' Qwen2.5-Coder-1.5B-Instruct-Q8_0-GGUF (CPU Only)':
                 await this.app.llamaServer.killChatCmd();
                 await this.app.llamaServer.shellChatCmd(llmMacTemplateChatCpu.replace(MODEL_PLACEHOLDER, "ggml-org/Qwen2.5-Coder-1.5B-Instruct-Q8_0-GGUF"));
                 break;
@@ -194,7 +196,7 @@ export class Menu {
                 await this.app.llamaServer.killFimCmd();
                 let commandCompletion = this.app.extConfig.launch_completion
                 if ( this.app.extConfig.lora_completion != undefined
-                    && this.app.extConfig.lora_completion.trim() != "undefined" 
+                    && this.app.extConfig.lora_completion.trim() != "undefined"
                     && this.app.extConfig.lora_completion.trim() != "") commandCompletion += " --lora " + this.app.extConfig.lora_completion
                 await this.app.llamaServer.shellFimCmd(commandCompletion);
                 break;
@@ -202,7 +204,7 @@ export class Menu {
                 await this.app.llamaServer.killChatCmd();
                 let commandChat = this.app.extConfig.launch_chat
                 if (this.app.extConfig.lora_chat != undefined
-                    && this.app.extConfig.lora_chat.trim() != "undefined" 
+                    && this.app.extConfig.lora_chat.trim() != "undefined"
                     && this.app.extConfig.lora_chat.trim() != "") commandChat += " --lora " + this.app.extConfig.lora_chat
                 await this.app.llamaServer.shellChatCmd(commandChat);
                 break;
