@@ -30,6 +30,7 @@ export class Architect {
     setOnSaveDeleteFileForDb = (context: vscode.ExtensionContext) => {
         const saveListener = vscode.workspace.onDidSaveTextDocument(async (document) => {
             try {
+                if (this.app.extConfig.rag_max_files <= 0) return;
                 if (!this.app.chatContext.isImageOrVideoFile(document.uri.toString())){
                     // Update after a delay and only if the file is not changed in the meantime to avoid too often updates
                     let updateTime = Date.now()
@@ -48,8 +49,9 @@ export class Architect {
         });
         context.subscriptions.push(saveListener);
 
-        // Add file delete listener for vector RAG
+        // Add file delete listener for RAG
         const deleteListener = vscode.workspace.onDidDeleteFiles(async (event) => {
+            if (this.app.extConfig.rag_max_files <= 0) return;
             for (const file of event.files) {
                 try {
                     await this.app.chatContext.removeDocument(file.toString());
@@ -73,6 +75,7 @@ export class Architect {
 
     setOnChangeActiveFile = (context: vscode.ExtensionContext) => {
         let changeActiveTextEditorDisp = vscode.window.onDidChangeActiveTextEditor((editor) => {
+            if(!editor || !editor.document || !this.app.extConfig.isCompletionEnabled(editor.document)) return;
             const previousEditor = vscode.window.activeTextEditor;
             if (previousEditor) {
                 setTimeout(async () => {
@@ -251,7 +254,7 @@ export class Architect {
     setClipboardEvents = (context: vscode.ExtensionContext) => {
         const copyCmd = vscode.commands.registerCommand('extension.copyIntercept', async () => {
             const editor = vscode.window.activeTextEditor;
-            if (!editor) {
+            if (!editor || !editor.document || !this.app.extConfig.isCompletionEnabled(editor.document)) {
                 // Delegate to the built-in paste action
                 await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
                 return;
@@ -260,13 +263,12 @@ export class Architect {
 
             // Delegate to the built-in command to complete the actual copy
             await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
-            this.app.logger.addEventLog("", "COPY_INTERCEPT", selectedLines[0])
         });
         context.subscriptions.push(copyCmd);
 
         const cutCmd = vscode.commands.registerCommand('extension.cutIntercept', async () => {
             const editor = vscode.window.activeTextEditor;
-            if (!editor) {
+            if (!editor || !editor.document || !this.app.extConfig.isCompletionEnabled(editor.document)) {
                 // Delegate to the built-in paste action
                 await vscode.commands.executeCommand('editor.action.clipboardCutAction');
                 return;
@@ -275,7 +277,6 @@ export class Architect {
 
             // Delegate to the built-in cut
             await vscode.commands.executeCommand('editor.action.clipboardCutAction');
-            this.app.logger.addEventLog("", "CUT_INTERCEPT", selectedLines[0])
         });
         context.subscriptions.push(cutCmd);
     }
@@ -313,17 +314,6 @@ export class Architect {
 
             if (!this.app.extConfig.endpoint_chat) return;
 
-            const editor = vscode.window.activeTextEditor;
-            if (editor) {
-                // if editor is active in the UI, pick a chunk before sending extra context to the ai
-                let activeDocument = editor.document;
-                const selection = editor.selection;
-                const cursorPosition = selection.active;
-                this.app.extraContext.pickChunkAroundCursor(cursorPosition.line, activeDocument);
-                // Ensure ring chunks buffer will be updated
-                this.app.extraContext.lastComplStartTime = Date.now() - this.app.extConfig.RING_UPDATE_MIN_TIME_LAST_COMPL - 1
-                this.app.extraContext.periodicRingBufferUpdate()
-            }
             this.app.askAi.showChatWithAi(true, context);
         });
         context.subscriptions.push(triggerAskAiDisposable);
