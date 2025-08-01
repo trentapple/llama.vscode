@@ -8,6 +8,8 @@
 // - използване на MCP
 import * as vscode from 'vscode';
 import {Application} from "./application";
+import {LlamaWebviewProvider} from './llama-webview-provider'
+import { Utils } from './utils';
 
 export class Architect {
     private app: Application
@@ -18,19 +20,20 @@ export class Architect {
 
     init = () => {
         // Start indexing workspace files
-        if (this.app.extConfig.endpoint_embeddings.trim() != "") {
+        if (this.app.configuration.rag_enabled) {
             setTimeout(() => {
                 this.app.chatContext.indexWorkspaceFiles().catch(error => {
                     console.error('Failed to index workspace files:', error);
-                });
+                });     
             }, 0);
         }
+        this.app.tools.init()
     }
 
     setOnSaveDeleteFileForDb = (context: vscode.ExtensionContext) => {
         const saveListener = vscode.workspace.onDidSaveTextDocument(async (document) => {
             try {
-                if (!this.app.extConfig.rag_enabled || this.app.extConfig.rag_max_files <= 0) return;
+                if (!this.app.configuration.rag_enabled || this.app.configuration.rag_max_files <= 0) return;
                 if (!this.app.chatContext.isImageOrVideoFile(document.uri.toString())){
                     // Update after a delay and only if the file is not changed in the meantime to avoid too often updates
                     let updateTime = Date.now()
@@ -51,7 +54,7 @@ export class Architect {
 
         // Add file delete listener for RAG
         const deleteListener = vscode.workspace.onDidDeleteFiles(async (event) => {
-            if (!this.app.extConfig.rag_enabled || this.app.extConfig.rag_max_files <= 0) return;
+            if (!this.app.configuration.rag_enabled || this.app.configuration.rag_max_files <= 0) return;
             for (const file of event.files) {
                 try {
                     await this.app.chatContext.removeDocument(file.toString());
@@ -66,16 +69,17 @@ export class Architect {
     setOnChangeConfiguration = (context: vscode.ExtensionContext) => {
         let configurationChangeDisp = vscode.workspace.onDidChangeConfiguration((event) => {
             const config = vscode.workspace.getConfiguration("llama-vscode");
-            this.app.extConfig.updateOnEvent(event, config);
-            if (this.app.extConfig.isRagConfigChanged(event)) this.init()
-            vscode.window.showInformationMessage(this.app.extConfig.getUiText(`llama-vscode extension is updated.`)??"");
+            this.app.configuration.updateOnEvent(event, config);
+            if (this.app.configuration.isRagConfigChanged(event)) this.init();
+            if (this.app.configuration.isToolChanged(event)) this.app.tools.init();
+            vscode.window.showInformationMessage(this.app.configuration.getUiText(`llama-vscode extension is updated.`)??"");
         });
         context.subscriptions.push(configurationChangeDisp);
     }
 
     setOnChangeActiveFile = (context: vscode.ExtensionContext) => {
         let changeActiveTextEditorDisp = vscode.window.onDidChangeActiveTextEditor((editor) => {
-            if(!editor || !editor.document || !this.app.extConfig.isCompletionEnabled(editor.document)) return;
+            if(!editor || !editor.document || !this.app.configuration.isCompletionEnabled(editor.document)) return;
             const previousEditor = vscode.window.activeTextEditor;
             if (previousEditor) {
                 setTimeout(async () => {
@@ -137,7 +141,7 @@ export class Architect {
     }
 
     setPeriodicRingBufferUpdate = (context: vscode.ExtensionContext) => {
-        const ringBufferIntervalId = setInterval(this.app.extraContext.periodicRingBufferUpdate, this.app.extConfig.ring_update_ms);
+        const ringBufferIntervalId = setInterval(this.app.extraContext.periodicRingBufferUpdate, this.app.configuration.ring_update_ms);
         const rungBufferUpdateDisposable = {
             dispose: () => {
                 clearInterval(ringBufferIntervalId);
@@ -241,7 +245,7 @@ export class Architect {
             { pattern: '**' },
             {
                 provideInlineCompletionItems: async (document, position, context, token) => {
-                    if (!this.app.extConfig.isCompletionEnabled(document)) {
+                    if (!this.app.configuration.isCompletionEnabled(document)) {
                         return undefined;
                     }
                     return await this.app.completion.getCompletionItems(document, position, context, token);
@@ -254,7 +258,7 @@ export class Architect {
     setClipboardEvents = (context: vscode.ExtensionContext) => {
         const copyCmd = vscode.commands.registerCommand('extension.copyIntercept', async () => {
             const editor = vscode.window.activeTextEditor;
-            if (!editor || !editor.document || !this.app.extConfig.isCompletionEnabled(editor.document)) {
+            if (!editor || !editor.document || !this.app.configuration.isCompletionEnabled(editor.document)) {
                 // Delegate to the built-in paste action
                 await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
                 return;
@@ -268,7 +272,7 @@ export class Architect {
 
         const cutCmd = vscode.commands.registerCommand('extension.cutIntercept', async () => {
             const editor = vscode.window.activeTextEditor;
-            if (!editor || !editor.document || !this.app.extConfig.isCompletionEnabled(editor.document)) {
+            if (!editor || !editor.document || !this.app.configuration.isCompletionEnabled(editor.document)) {
                 // Delegate to the built-in paste action
                 await vscode.commands.executeCommand('editor.action.clipboardCutAction');
                 return;
@@ -298,7 +302,7 @@ export class Architect {
                 return;
             }
 
-            if (!this.app.extConfig.endpoint_chat) return;
+            if (!this.app.configuration.endpoint_chat) return;
 
             this.app.askAi.showChatWithAi(false, context);
         });
@@ -312,9 +316,23 @@ export class Architect {
                 return;
             }
 
-            if (!this.app.extConfig.endpoint_chat) return;
+            if (!this.app.configuration.endpoint_chat) return;
 
             this.app.askAi.showChatWithAi(true, context);
+        });
+        context.subscriptions.push(triggerAskAiDisposable);
+    }
+
+    registerCommandAskAiWithTools = (context: vscode.ExtensionContext) => {
+        const triggerAskAiDisposable = vscode.commands.registerCommand('extension.askAiWithTools', async () => {
+            if (!vscode.window.activeTextEditor) {
+                vscode.window.showErrorMessage('No active editor!');
+                return;
+            }
+
+            if (!this.app.configuration.endpoint_chat) return;
+
+            this.app.askAi.showChatWithTools(context);
         });
         context.subscriptions.push(triggerAskAiDisposable);
     }
@@ -345,4 +363,74 @@ export class Architect {
             })
         );
     }
+
+    registerCommandKillAgent = (context: vscode.ExtensionContext) => {
+        context.subscriptions.push(
+            vscode.commands.registerCommand('extension.killAgent', () => {
+                this.app.llamaAgent.stopAgent();
+            })
+        );
+    }
+
+    registerWebviewProvider = (context: vscode.ExtensionContext) => {
+        const webviewProvider = vscode.window.registerWebviewViewProvider(
+            LlamaWebviewProvider.viewType,
+            this.app.llamaWebviewProvider
+        );
+        context.subscriptions.push(webviewProvider);
+
+        // Register command to show the webview
+        const showWebviewCommand = vscode.commands.registerCommand(
+            'extension.showLlamaWebview',
+            () => {
+                // Focus the webview in the Explorer panel
+                vscode.commands.executeCommand('llama-vscode.webview.focus');
+                const editor = vscode.window.activeTextEditor;
+                if (editor && editor.selection) {
+                    let fileLongName = editor.document.fileName;
+                    const parts = fileLongName.split(/[\\/]/);
+                    let fileShortName = parts[parts.length - 1]
+                    if (!editor.selection.isEmpty){
+                        let sel = editor.selection;
+                        this.app.llamaAgent.addContextProjectFile(fileLongName, fileShortName + "|" + (sel.start.line + 1) + "|" + (sel.end.line + 1))
+                    } else {
+                        this.app.llamaAgent.addContextProjectFile(fileLongName, fileShortName)
+                    }
+                }
+                
+                // Send a message to focus the textarea after a short delay
+                setTimeout(() => {
+                    if (this.app.llamaWebviewProvider.webview) {
+                        this.app.llamaWebviewProvider.webview.webview.postMessage({
+                            command: 'focusTextarea'
+                        });
+                        const contextFiles = this.app.llamaAgent.getContextProjectFile();
+                        this.app.llamaWebviewProvider.webview.webview.postMessage({
+                            command: 'updateContextFiles',
+                            files: Array.from(contextFiles.entries())
+                        });
+                    }
+                    
+                }, 100);
+            }
+        );
+        context.subscriptions.push(showWebviewCommand);
+
+        // Register command to send messages to the webview
+        const postMessageCommand = vscode.commands.registerCommand(
+            'llama-vscode.webview.postMessage',
+            (message: any) => {
+                console.log('PostMessage command called with:', message);
+                if (this.app.llamaWebviewProvider.webview) {
+                    console.log('Webview found, sending message');
+                    this.app.llamaWebviewProvider.webview.webview.postMessage(message);
+                } else {
+                    console.log('Webview not found');
+                    vscode.window.showWarningMessage('Webview not ready yet. Please try again.');
+                }
+            }
+        );
+        context.subscriptions.push(postMessageCommand);
+    }
+    
 }

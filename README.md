@@ -20,6 +20,7 @@ Local LLM-assisted text completion extension for VS Code
 - Ring context with chunks from open and edited files and yanked text
 - [Supports very large contexts even on low-end hardware via smart context reuse](https://github.com/ggerganov/llama.cpp/pull/9787)
 - Display performance stats
+- **NEW**: React-based UI Llama AI with tools
 
 ## Installation
 
@@ -102,6 +103,28 @@ You can use any other FIM-compatible model that your system can handle. By defau
 ### Recommended LLMs
 
 The plugin requires FIM-compatible models: [HF collection](https://huggingface.co/collections/ggml-org/llamavim-6720fece33898ac10544ecf9)
+
+## Llama Agent Webview
+
+The extension includes Llama Agent:
+
+### Features
+- Llama Agent UI in Explorer view
+- OpenRouter API model selection (assumes your OpenRauter key is in setting Api_key_tools)
+- MCP Support
+- 9 internal tools available for use
+- custom_tool - returns the content of a file or a web page
+- custom_eval_tool - write your own tool in Typescript/javascript
+- Attach the selection to the context
+- Configure maximum loops for Llama Agent
+
+### Usage
+1. Open Llama Agent with Ctrl+Shift+A or from llama-vscode menu Show Llama Agent
+2. If you have OpenRouter API key in setting Api_key_tools - select a model from OpenRouter by clicking button Select Model. Alternatively - set the model directly with settings Endpoint_tools, Api_key_tools, Ai_model, Ai_api_version (should be v1 in almost all cases)
+3. Write a query (Use Enter for new line) and attach files if needed
+4. Click Ask button
+
+More details(https://github.com/ggml-org/llama.vscode/wiki) 
 
 ## Examples
 

@@ -12,10 +12,15 @@ import { TextEditor } from "./text-editor";
 import { ChatContext } from "./chat-context";
 import { Prompts } from "./prompts";
 import { Git } from "./git";
+import { Tools } from "./tools";
+import { LlamaAgent } from "./llama-agent";
+import {LlamaWebviewProvider} from "./llama-webview-provider"
+import * as vscode from "vscode"
+import path from "path";
 
 export class Application {
     private static instance: Application;
-    public extConfig: Configuration;
+    public configuration: Configuration;
     public extraContext: ExtraContext;
     public llamaServer: LlamaServer
     public lruResultCache: LRUCache
@@ -29,12 +34,15 @@ export class Application {
     public chatContext: ChatContext
     public prompts: Prompts
     public git: Git
+    public tools: Tools
+    public llamaAgent: LlamaAgent
+    public llamaWebviewProvider: LlamaWebviewProvider
 
-    private constructor() {
-        this.extConfig = new Configuration()
+    private constructor(context: vscode.ExtensionContext) {
+        this.configuration = new Configuration()
         this.llamaServer = new LlamaServer(this)
         this.extraContext = new ExtraContext(this)
-        this.lruResultCache = new LRUCache(this.extConfig.max_cache_keys);
+        this.lruResultCache = new LRUCache(this.configuration.max_cache_keys);
         this.architect = new Architect(this);
         this.statusbar = new Statusbar(this)
         this.menu = new Menu(this)
@@ -45,11 +53,14 @@ export class Application {
         this.chatContext = new ChatContext(this)
         this.prompts = new Prompts(this)
         this.git = new Git(this)
+        this.tools = new Tools(this)
+        this.llamaAgent = new LlamaAgent(this)
+        this.llamaWebviewProvider = new LlamaWebviewProvider(context.extensionUri, this)
     }
 
-    public static getInstance(): Application {
+    public static getInstance(context: vscode.ExtensionContext): Application {
         if (!Application.instance) {
-            Application.instance = new Application();
+            Application.instance = new Application(context);
         }
         return Application.instance;
     }
