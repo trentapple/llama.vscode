@@ -1,7 +1,4 @@
 // TODO
-// За мак - да се стартират всички сървери с правилните конфигурации
-// - 3 избора според РАМ паметта на машината (без имена на модели - само РАМ)
-// Ако се използва лора за чат сървера - да се подава в заявката от webui
 // Идеи
 // - Използване на агенти (?)
 // - използване lSP
@@ -26,6 +23,11 @@ export class Architect {
                     console.error('Failed to index workspace files:', error);
                 });     
             }, 0);
+        }
+        let isFirstStart = this.app.persistence.getGlobalValue("isFirstStart")
+        if (isFirstStart == undefined || isFirstStart){
+            this.app.menu.showHowToUseLlamaVscode();
+            this.app.persistence.setGlobalValue("isFirstStart", false)
         }
         this.app.tools.init()
     }
@@ -301,8 +303,9 @@ export class Architect {
                 vscode.window.showErrorMessage('No active editor!');
                 return;
             }
-
-            if (!this.app.configuration.endpoint_chat) return;
+            
+            let endpoint = this.getChatEndpoint();
+            if (!endpoint) return;
 
             this.app.askAi.showChatWithAi(false, context);
         });
@@ -316,7 +319,8 @@ export class Architect {
                 return;
             }
 
-            if (!this.app.configuration.endpoint_chat) return;
+            let endpoint = this.getChatEndpoint();
+            if (!endpoint) return;
 
             this.app.askAi.showChatWithAi(true, context);
         });
@@ -330,7 +334,8 @@ export class Architect {
                 return;
             }
 
-            if (!this.app.configuration.endpoint_chat) return;
+            let endpoint = this.getChatEndpoint();
+            if (!endpoint) return;
 
             this.app.askAi.showChatWithTools(context);
         });
@@ -433,4 +438,11 @@ export class Architect {
         context.subscriptions.push(postMessageCommand);
     }
     
+
+    private getChatEndpoint() {
+        let endpoint = this.app.configuration.endpoint_chat;
+        let chatModel = this.app.menu.getChatModel();
+        if (chatModel && chatModel.endpoint) endpoint = chatModel.endpoint;
+        return endpoint;
+    }
 }
