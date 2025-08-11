@@ -4,7 +4,7 @@ import {Utils} from "./utils";
 import path from "path";
 import fs from 'fs';
 import { dir } from "console";
-
+import * as ts from "typescript";
 
 type ToolsMap = Map<string, (...args: any[]) => any>;
 
@@ -28,7 +28,8 @@ export class Tools {
         this.toolsFunc.set("edit_file", this.editFile)
         this.toolsFunc.set("ask_user", this.askUser)
         this.toolsFunc.set("custom_tool", this.customTool)
-        this.toolsFunc.set("custom_eval_tool", this.customEvalTool)        
+        this.toolsFunc.set("custom_eval_tool", this.customEvalTool)   
+        this.toolsFunc.set("llama_vscode_help", this.llamaVscodeHelp)     
         this.toolsFuncDesc.set("run_terminal_command", this.runTerminalCommandDesc);
         this.toolsFuncDesc.set("search_source", this.searchSourceDesc)
         this.toolsFuncDesc.set("read_file", this.readFileDesc)
@@ -40,6 +41,7 @@ export class Tools {
         this.toolsFuncDesc.set("ask_user", this.askUserDesc)
         this.toolsFuncDesc.set("custom_tool", this.customToolDesc)
         this.toolsFuncDesc.set("custom_eval_tool", this.customEvalToolDesc)
+        this.toolsFuncDesc.set("llama_vscode_help", this.llamaVscodeHelpDesc)
         
     }
 
@@ -304,9 +306,19 @@ export class Tools {
         let params = JSON.parse(args);
 
         if (params.input == undefined) return "The input is not provided."
+        let functionCode = ""
+        let settingValue = this.app.configuration.tool_custom_eval_tool_code
+        if (settingValue.startsWith("function")){
+            functionCode = settingValue;
+        } else {
+            // Assumes this is a file
+            if (fs.existsSync(settingValue)) functionCode = fs.readFileSync(settingValue, 'utf-8');
+            else return "Error: There is no function to eval!"
+        }
 
-        const functionString = '('+ this.app.configuration.tool_custom_eval_tool_code +')';
-        const toolFunction = eval(functionString);
+        const functionString = '('+ functionCode +')';
+        const jscode = ts.transpile(functionString);
+        const toolFunction = eval(jscode);
         
         let result = toolFunction(params.input)
 
@@ -318,6 +330,17 @@ export class Tools {
 
         return "Custom eval tool is executed. Input: " + params.input
     }
+
+    public llamaVscodeHelp = async (args: string) => {
+        return Utils.readExtensionFile("resources/help.md")
+    }
+
+    public llamaVscodeHelpDesc = async (args: string) => {
+        let params = JSON.parse(args);
+
+        return "llama_vscode_help tool is executed. "
+    }
+    
     
     public init = () => {
         this.tools = [
@@ -564,12 +587,26 @@ export class Tools {
                 }
             }
             ] : []),
-        ]
-        
+            ...(this.app.configuration.tool_llama_vscode_help_enabled ? [
+            {
+                "type": "function",
+                "function": {
+                    "name": "llama_vscode_help",
+                    "description": "Returns a help text for llama-vscode in .md format. Use this tool for information about llama-vscode (synonim: llama.vscode) extension: how to use it, what are chat, completion, embeddings and tools models, what is orchestra, how to add/edit/remove them, how to select them, etc.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                    "strict": true
+                }
+            }
+            ] : []),
+        ]        
     }
 
     selectTools = async () => {
-                    // Define items with initial selection state
+        // Define items with initial selection state
         const toolItems: vscode.QuickPickItem[] = []
         const appPrefix = "llama.vscode_"
         const config = this.app.configuration.config;

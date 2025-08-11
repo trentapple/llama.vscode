@@ -527,7 +527,7 @@ export class Utils {
         }
 
         if (editBlocks.length === 0) {
-            if (diffText.length > 0) editBlocks.push(Utils.extractConflictParts("```diff" + diffText))
+            if (diffText.length > 0) editBlocks.push(Utils.extractConflictParts("```diff\n" + diffText))
             else return "";
         }
 
@@ -568,7 +568,7 @@ export class Utils {
     }
 
     static extractConflictParts = (input: string): [string, string, string] => {
-        const lines = input.split('\n');
+        const lines = input.split(/\r?\n/);
         const part1: string[] = [];
         const part2: string[] = [];
         const part3: string[] = [];
@@ -732,4 +732,21 @@ export class Utils {
         }
         return s;
     };
+
+    static readExtensionFile = async (relativePath: string): Promise<string> => {
+        // Get the extension's context (passed in activation)
+        const extension = vscode.extensions.getExtension('ggml-org.llama-vscode');
+        if (!extension) {
+            throw new Error('Extension not found');
+        }
+
+        const absolitePath = path.join(extension.extensionPath, relativePath);
+
+        try {
+            // Read the file content
+            return await fs.promises.readFile(absolitePath, 'utf-8');
+        } catch (error) {
+            return `Failed to read extension file: ${error instanceof Error ? error.message : String(error)}`;
+        }
+    }
 }

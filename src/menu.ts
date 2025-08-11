@@ -1,11 +1,11 @@
 import {Application} from "./application";
 import vscode, { QuickPickItem } from "vscode";
-import { LlmModel, Orchestra } from "./types";
-import { LlamaEmbeddingsResponse } from "./llama-server";
+import { HuggingfaceFile, HuggingfaceModel, LlmModel, ModelTypeDetails, Orchestra } from "./types";
 import { Utils } from "./utils";
 import { Configuration } from "./configuration";
 import * as fs from 'fs';
 import * as path from 'path';
+import axios from "axios";
 
 export class Menu {
     private app: Application
@@ -224,13 +224,7 @@ export class Menu {
                 await vscode.env.openExternal(vscode.Uri.parse('https://github.com/ggml-org/llama.vscode/wiki'));
                 break;
             case "Install/upgrade llama.cpp":
-                if (process.platform != 'darwin' && process.platform != 'win32') {
-                    vscode.window.showInformationMessage("Automatic install/upgrade is supported only for Mac and Windows for now. Download llama.cpp package manually and add the folder to the path. Visit github.com/ggml-org/llama.vscode/wiki for details.")
-                    return;
-                }
-                await this.app.llamaServer.killCommandCmd();
-                let terminalCommand = process.platform === 'darwin' ? "brew install llama.cpp" : process.platform === 'win32' ? "winget install llama.cpp" : ""
-                await this.app.llamaServer.shellCommandCmd(terminalCommand);
+                await this.installLlamacpp();
                 break;
             default:
                 await this.handleCompletionToggle(selected.label, currentLanguage, languageSettings);
@@ -287,31 +281,46 @@ export class Menu {
         }
     }
 
-    startOrChangeModel = async (modelsList: any[], launchSettingName: string, selModelPropName: string, killCmd: () => void, shellCmd: (message: string) => void) => {
-        const modelsItems: QuickPickItem[] = this.getModels(modelsList);
+    selectStartModel = async (modelType: ModelTypeDetails) => {
+        const modelsItems: QuickPickItem[] = this.getModels(modelType.modelsList);
         const launchToEndpoint = new Map([ ["launch_completion", "endpoint"], ["launch_chat", "endpoint_chat"],  ["launch_embeddings", "endpoint_embeddings"],  ["launch_tools", "endpoint_tools"] ]);
-        // if (this.app.configuration[launchSettingName as keyof Configuration]) modelsItems.push({ label: (modelsItems.length+1) + ". setting " + launchSettingName, description: this.app.configuration.launch_completion, detail: this.startModelDetail });
         modelsItems.push({ label: (modelsItems.length+1) + ". Use settings", description: "" });
         const selectedModel = await vscode.window.showQuickPick(modelsItems);
         if (selectedModel) {
-            let selModel: LlmModel;
             if (parseInt(selectedModel.label.split(". ")[0], 10) == modelsItems.length){
                 // Last in the list => use settings
-                this[selModelPropName as keyof Menu] = {
+                this[modelType.selModelPropName as keyof Menu] = {
                     name: "Use settings", 
                     aiModel: this.app.configuration.ai_model,
                     isKeyRequired: false,
-                    endpoint: this.app.configuration[launchToEndpoint.get(launchSettingName) as keyof Configuration],
-                    localStartCommand: this.app.configuration[launchSettingName as keyof Configuration]
+                    endpoint: this.app.configuration[launchToEndpoint.get(modelType.launchSettingName) as keyof Configuration],
+                    localStartCommand: this.app.configuration[modelType.launchSettingName as keyof Configuration]
                 } as any
-            } else this[selModelPropName as keyof Menu] = modelsList[parseInt(selectedModel.label.split(". ")[0], 10) - 1]
-            selModel = this[selModelPropName as keyof Menu] as LlmModel
-            this.addApiKey(selModel);
-            await this.app.persistence.setValue(selModelPropName, selModel);
-            await killCmd();
-            if (selModel.localStartCommand) await shellCmd(selModel.localStartCommand??"");
-            this.app.llamaWebviewProvider.updateModelInfo();
+            } else {
+                this[modelType.selModelPropName as keyof Menu] = modelType.modelsList[parseInt(selectedModel.label.split(". ")[0], 10) - 1] as any
+            }
+            
+            await this.activateModel(modelType.selModelPropName, modelType.killCmd, modelType.shellCmd);
         }
+    }
+
+    public async installLlamacpp() {
+        if (process.platform != 'darwin' && process.platform != 'win32') {
+            vscode.window.showInformationMessage("Automatic install/upgrade is supported only for Mac and Windows for now. Download llama.cpp package manually and add the folder to the path. Visit github.com/ggml-org/llama.vscode/wiki for details.");
+        } else {
+            await this.app.llamaServer.killCommandCmd();
+            let terminalCommand = process.platform === 'darwin' ? "brew install llama.cpp" : process.platform === 'win32' ? "winget install llama.cpp" : "";
+            await this.app.llamaServer.shellCommandCmd(terminalCommand);
+        }
+    }
+
+    private async activateModel(selModelPropName: string, killCmd: () => void, shellCmd: (message: string) => void) {
+        let selModel = this[selModelPropName as keyof Menu] as LlmModel
+        this.addApiKey(selModel);
+        await this.app.persistence.setValue(selModelPropName, selModel);
+        await killCmd();
+        if (selModel.localStartCommand) await shellCmd(selModel.localStartCommand ?? "");
+        this.app.llamaWebviewProvider.updateModelInfo();
     }
 
     private getOrchestraActions(): vscode.QuickPickItem[] {
@@ -354,6 +363,9 @@ export class Menu {
             },
             {
                 label: this.app.configuration.getUiText("Add "+modelType+" model...") ?? ""
+            },
+            {
+                label: this.app.configuration.getUiText("Add "+modelType+" model from huggingface...") ?? ""
             },
             {
                 label: this.app.configuration.getUiText('View '+modelType+' model details...') ?? ""
@@ -425,12 +437,13 @@ export class Menu {
         }
     }
 
-    private async addModelToList(modelsList: any[], settingName: string) {
+    private async addModelToList(modelTypeDetails: ModelTypeDetails) {
+        const hostEndpoint = "http://" + modelTypeDetails.newModelHost
         const modelListToLocalCommand = new Map([ 
-            ["complition_models_list", "llama-server -hf <model name from hugging face, i.e: ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF> -ngl 99 -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256 --port 8012"],
-            ["chat_models_list", 'llama-server -hf <model name from hugging face, i.e: ggml-org/Qwen2.5-Coder-7B-Instruct-Q8_0-GGUF> -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256 -np 2 --port 8011'], 
-            ["embeddings_models_list", "llama-server -hf <model name from hugging face, i.e: ggml-org/Nomic-Embed-Text-V2-GGUF> -ngl 99 -ub 2048 -b 2048 --ctx-size 2048 --embeddings --port 8010"],  
-            ["tools_models_list", "llama-server -hf <model name from hugging face, i.e: unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q8_0> --jinja  -ngl 99 --port 8009 -c 0 -fa -ub 1024 -b 1024 --cache-reuse 256"] ]);
+            ["complition_models_list", "llama-server -hf <model name from hugging face, i.e: ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF> -ngl 99 -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256 --port " + modelTypeDetails.newModelPort + " --host " + modelTypeDetails.newModelHost],
+            ["chat_models_list", 'llama-server -hf <model name from hugging face, i.e: ggml-org/Qwen2.5-Coder-7B-Instruct-Q8_0-GGUF> -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256 -np 2 --port ' + modelTypeDetails.newModelPort + " --host " + modelTypeDetails.newModelHost], 
+            ["embeddings_models_list", "llama-server -hf <model name from hugging face, i.e: ggml-org/Nomic-Embed-Text-V2-GGUF> -ngl 99 -ub 2048 -b 2048 --ctx-size 2048 --embeddings --port " + modelTypeDetails.newModelPort + " --host " + modelTypeDetails.newModelHost],  
+            ["tools_models_list", "llama-server -hf <model name from hugging face, i.e: unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q8_0> --jinja  -ngl 99 -c 0 -fa -ub 1024 -b 1024 --cache-reuse 256 --port " + modelTypeDetails.newModelPort + " --host " + modelTypeDetails.newModelHost] ]);
         let name = "";
         while (name.trim() === "") {
             name = (await vscode.window.showInputBox({
@@ -440,14 +453,14 @@ export class Menu {
             })) ?? "";
         }
         const localStartCommand = await vscode.window.showInputBox({
-            placeHolder: 'A command to start the model locally, i.e. llama-server -m model_name.gguf --port 8011. ',
+            placeHolder: 'A command to start the model locally, i.e. llama-server -m model_name.gguf --port '+ modelTypeDetails.newModelPort + '. ',
             prompt: 'Enter a command to start the model locally (leave emtpy if external server is used). If not empty, the command will be run on selecting the model.',
-            value: modelListToLocalCommand.get(settingName)
+            value: modelListToLocalCommand.get(modelTypeDetails.modelsListSettingName)
         });
         let endpoint = "";
         while (endpoint.trim() === "") {
             endpoint = await vscode.window.showInputBox({
-                placeHolder: 'Endpoint for accessing your model, i.e. http://127.0.0.1:8011 (required)' ,
+                placeHolder: 'Endpoint for accessing your model, i.e. ' + hostEndpoint + ':' + modelTypeDetails.newModelPort + ' (required)' ,
                 prompt: 'Endpoint for your model (required)',
                 value: ''
             }) ?? "";
@@ -458,7 +471,7 @@ export class Menu {
             value: ''
         });
         const isKeyRequired = await Utils.showYesNoDialog("Is API key required for this endpint (" + endpoint + ")?");
-        let newChatModel: LlmModel = {
+        let newModel: LlmModel = {
             name: name,
             localStartCommand: localStartCommand,
             endpoint: endpoint,
@@ -475,10 +488,192 @@ export class Menu {
             "\nDo you want to add a model with these properties?");
 
         if (shouldAddModel){
-            modelsList.push(newChatModel);
-            this.app.configuration.updateConfigValue(settingName, modelsList);
+            modelTypeDetails.modelsList.push(newModel);
+            this.app.configuration.updateConfigValue(modelTypeDetails.modelsListSettingName, modelTypeDetails.modelsList);
             vscode.window.showInformationMessage("The model is added.")
         }
+    }
+
+    public async addHuggingfaceModelToList(typeDetails: ModelTypeDetails) {
+        const hostEndpoint = "http://" + typeDetails.newModelHost
+        const modelPlaceholder = "<model_name>";
+        const modelListToLocalCommand = new Map([ 
+            ["complition_models_list", "llama-server -hf " + modelPlaceholder + " -ngl 99 -ub 1024 -b 1024 -dt 0.1 --ctx-size 0 --cache-reuse 256 --port " + typeDetails.newModelPort + " --host " + typeDetails.newModelHost],
+            ["chat_models_list", 'llama-server -hf ' + modelPlaceholder + ' -ngl 99 -fa -ub 1024 -b 1024 --ctx-size 0 --cache-reuse 256 -np 2 --port ' + typeDetails.newModelPort + " --host " + typeDetails.newModelHost], 
+            ["embeddings_models_list", "llama-server -hf " + modelPlaceholder + " -ngl 99 -ub 2048 -b 2048 --ctx-size 2048 --embeddings --port " + typeDetails.newModelPort + " --host " + typeDetails.newModelHost],  
+            ["tools_models_list", "llama-server -hf " + modelPlaceholder + " --jinja  -ngl 99 -c 0 -fa -ub 1024 -b 1024 --cache-reuse 256 --port " + typeDetails.newModelPort + " --host " + typeDetails.newModelHost] ]);
+        
+        const searchWords = await vscode.window.showInputBox({
+            placeHolder: 'keywords for searching a model from huggingface',
+            prompt: 'Enter keywords to search for models in huggingface',
+            value: ""
+        });
+        
+        if (!searchWords){
+              vscode.window.showInformationMessage("No huggingface model selected.")
+              return;
+        }
+        let hfModelName = await this.getDownloadModelName(searchWords);
+        if (hfModelName == "") return;
+        const localStartCommand = modelListToLocalCommand.get(typeDetails.modelsListSettingName)?.replace(modelPlaceholder, hfModelName)
+        
+        let endpoint = hostEndpoint +":" + typeDetails.newModelPort;
+        const aiModel = ""
+        const isKeyRequired = false;
+        let name = "hf: " + hfModelName;
+        let newHfModel: LlmModel = {
+            name: name,
+            localStartCommand: localStartCommand,
+            endpoint: endpoint,
+            aiModel: aiModel,
+            isKeyRequired: isKeyRequired
+        };
+
+        
+        const shouldAddModel = await Utils.showYesNoDialog("You have enterd: " +
+            "\nname: " + name +
+            "\nlocal start command: " + localStartCommand +
+            "\nendpoint: " + endpoint +
+            "\nmodel name for provider: " + aiModel +
+            "\napi key required: " + isKeyRequired +
+            "\nDo you want to add a model with these properties?");
+
+        if (shouldAddModel){
+            typeDetails.modelsList.push(newHfModel);
+            this.app.configuration.updateConfigValue(typeDetails.modelsListSettingName, typeDetails.modelsList);
+            vscode.window.showInformationMessage("The model is added.")
+            const shouldSelct = await Utils.showYesNoDialog("Do you want to select/start the newly added model?")
+            if (shouldSelct) {
+                this[typeDetails.selModelPropName as keyof Menu] = newHfModel as any
+                this.activateModel(typeDetails.selModelPropName, typeDetails.killCmd, typeDetails.shellCmd);
+            }
+        }
+    }
+
+    private async getDownloadModelName(searchWords: string) {
+        const foundModels = await this.getHfModels(searchWords ?? "");
+        let hfModelName = "";
+        if (foundModels && foundModels.length > 0) {
+            const hfModelsQp: QuickPickItem[] = [];
+            for (let hfModel of foundModels) {
+                if (!hfModel.private) {
+                    hfModelsQp.push({
+                        label: hfModel.modelId,
+                        description: "created: " + hfModel.createdAt + " | downloads: " + hfModel.downloads + " | likes: " + hfModel.likes
+                    });
+                }
+            }
+            const selModel = await vscode.window.showQuickPick(hfModelsQp);
+            if (selModel && selModel.label) {
+                let modelFiles = await this.getHfModelFiles(selModel.label);
+                if (modelFiles && modelFiles.length > 0) {
+                    const hfModelsFilesQp: QuickPickItem[] = await this.getFilesOfModel(selModel, modelFiles);
+                    if (hfModelsFilesQp.length <= 0) {
+                        vscode.window.showInformationMessage("No files found for model " + selModel.label + " or the files are with are with unexpected naming conventions.");
+                        return "";
+                    }
+                    let selFile = await vscode.window.showQuickPick(hfModelsFilesQp);
+                    if (!selFile) {
+                        vscode.window.showInformationMessage("No files selected for model " + selModel.label + ".");
+                        return "";
+                    }
+                    hfModelName = selFile?.label ?? "";
+
+                } else {
+                    vscode.window.showInformationMessage("No files found for model " + selModel.label);
+                    return "";
+                }
+            }
+            else {
+                vscode.window.showInformationMessage("No huggingface model selected.");
+                return '';
+            }
+        } else {
+            vscode.window.showInformationMessage("No model selected.");
+            return "";
+        }
+        return hfModelName;
+    }
+
+    private async getFilesOfModel(selModel: vscode.QuickPickItem, modelFiles: HuggingfaceFile[]) {
+        const hfModelsFilesQp: QuickPickItem[] = [];
+        const ggufSuffix = ".gguf";
+        let cleanModelName = selModel.label.split("/")[1].replace(/-gguf/gi, "");
+        let arePartsOfOneFile = true;
+        let multiplePartsSize = 0;
+        let multiplePartsCount = 0;
+        for (let file of modelFiles) {
+            if (file.type == "file"
+                && file.path.toLowerCase().endsWith(ggufSuffix)
+                && file.path.toLowerCase().startsWith(cleanModelName.toLowerCase())) {
+                let quantization = file.path.slice(cleanModelName.length + 1, -ggufSuffix.length);
+                if (arePartsOfOneFile && !this.isOneOfMany(quantization.slice(-14))) arePartsOfOneFile = false;
+                if (!arePartsOfOneFile) {
+                    hfModelsFilesQp.push({
+                        label: selModel.label + (quantization? ":" + quantization : ""),
+                        description: "size: " + (Math.round((file.size / 1000000000) * 100) / 100) + "GB"
+                    });
+                } else {
+                    multiplePartsSize += file.size;
+                    multiplePartsCount++;
+                }
+            }
+            if (file.type == "directory") {
+                let subfolderFiles = await this.getHfModelSubforlderFiles(selModel.label, file.path);
+                let totalSize = 0;
+                let totalFiles = 0;
+                for (let file of subfolderFiles) {
+                    if (file.path.toLowerCase().endsWith(ggufSuffix)) {
+                        totalSize += file.size;
+                        totalFiles++;
+                    }
+                }
+                hfModelsFilesQp.push({
+                    label: selModel.label + ":" + file.path,
+                    description: "size: " + (Math.round((totalSize / 1000000000) * 100) / 100) + " GB | files: " + totalFiles
+                });
+            }
+        }
+        if (arePartsOfOneFile) {
+            hfModelsFilesQp.push({
+                label: selModel.label,
+                description: "size: " + (Math.round((multiplePartsSize / 1073741824) * 100) / 100) + " GB | files: " + multiplePartsCount
+            });
+        }
+        return hfModelsFilesQp;
+    }
+
+    private isOneOfMany(input: string): boolean {
+        const regex = /^\d{5}-of-\d{5}$/;
+        return regex.test(input);
+    }
+
+    private async getHfModels(searchWords: string): Promise<HuggingfaceModel[]> {
+        let hfEndpoint = "https://huggingface.co/api/models?limit=1500&search="+ "GGUF+" + searchWords.replace(" ", "+");
+        let result = await axios.get(
+            `${Utils.trimTrailingSlash(hfEndpoint)}`
+        );
+
+        if (result && result.data) return result.data as HuggingfaceModel[]
+        else return [];
+    }
+
+    private async getHfModelFiles(modelId: string): Promise<HuggingfaceFile[]> {
+        let hfEndpoint = "https://huggingface.co/api/models/" + modelId + "/tree/main";
+        let result = await axios.get(
+            `${Utils.trimTrailingSlash(hfEndpoint)}`
+        );
+        if (result && result.data) return result.data as HuggingfaceFile[]
+        else return [];
+    }
+
+    private async getHfModelSubforlderFiles(modelId: string, subfolder: string): Promise<HuggingfaceFile[]> {
+        let hfEndpoint = "https://huggingface.co/api/models/" + modelId + "/tree/main/" + subfolder;
+        let result = await axios.get(
+            `${Utils.trimTrailingSlash(hfEndpoint)}`
+        );
+        if (result && result.data) return result.data as HuggingfaceFile[]
+        else return [];
     }
 
     private async addOrchestraToList(orchestraList: any[], settingName: string) {
@@ -689,7 +884,7 @@ export class Menu {
 
             if (shouldExport){
                 const uri = await vscode.window.showSaveDialog({
-                        defaultUri: vscode.Uri.file(path.join(vscode.workspace.rootPath || '', selectedOrchestra.name.slice(0,40)+'.orc')),
+                        defaultUri: vscode.Uri.file(path.join(vscode.workspace.rootPath || '', selectedOrchestra.name+'.orc')),
                         filters: {
                             'Orchestra Files': ['orc'],
                             'All Files': ['*']
@@ -720,7 +915,7 @@ export class Menu {
 
             if (shouldExport){
                 const uri = await vscode.window.showSaveDialog({
-                        defaultUri: vscode.Uri.file(path.join(vscode.workspace.rootPath || '', selectedmodel.name.slice(0,40)+'.json')),
+                        defaultUri: vscode.Uri.file(path.join(vscode.workspace.rootPath || '', selectedmodel.name+'.json')),
                         filters: {
                             'Model Files': ['json'],
                             'All Files': ['*']
@@ -749,7 +944,10 @@ export class Menu {
                     prompt: 'your api key',
                     value: ''
                 });
-                if (result) this.app.persistence.setApiKey(model.endpoint ?? "", result);
+                if (result) {
+                    this.app.persistence.setApiKey(model.endpoint ?? "", result);
+                    vscode.window.showInformationMessage("Your API key for "+ model.endpoint + " was saved.")
+                }
             }
         }
     }
@@ -779,23 +977,7 @@ export class Menu {
             });
         }
         return complOrchestrasItems;
-    }
-
-    private getToolsModelsList(modelsFromProperty:any[]) {
-        const complModelsItems: QuickPickItem[] = [];
-        let i = 0
-        for (let model of modelsFromProperty) {
-            i++;
-            complModelsItems.push({
-                label: i + ". " +model.name,
-                description: model.aiModel,
-                detail: "Endpoint = " + model.endpoint + " | Is api key required = " + model.isKeyRequired
-            });
-        }
-        return complModelsItems;
-    }
-
-    
+    }    
 
     private async handleCompletionToggle(label: string, currentLanguage: string | undefined, languageSettings: Record<string, boolean>) {
         if (label.includes(this.app.configuration.getUiText('All Completions')??"")) {
@@ -865,14 +1047,47 @@ export class Menu {
         return this.selectedOrchestra != undefined && this.selectedOrchestra.name. trim() != "";
     }
 
+        processComplModelsActions = async (selected:vscode.QuickPickItem) => {
+        let compleModelType = this.getComplTypeDetails()
+        switch (selected.label) {
+            case this.app.configuration.getUiText("Select/start completion model..."):  
+                await this.selectStartModel(compleModelType);
+                break;
+            case this.app.configuration.getUiText('Add completion model...'):
+                await this.addModelToList(compleModelType)
+                break;
+            case this.app.configuration.getUiText('Add completion model from huggingface...'):
+                await this.addHuggingfaceModelToList(compleModelType);
+                break;
+            case this.app.configuration.getUiText('Delete completion model...'):
+                await this.deleteModelFromList(this.app.configuration.complition_models_list, "complition_models_list");
+                break;
+            case this.app.configuration.getUiText('View completion model details...'):
+                await this.viewModelFromList(this.app.configuration.complition_models_list)
+                break;
+            case this.app.configuration.getUiText("Deselect/stop completion model"):
+                await this.deselectStopModel(this.app.llamaServer.killFimCmd, "selectedComplModel");
+                break;
+            case this.app.configuration.getUiText('Export completion model...'):
+                await this.exportModelFromList(this.app.configuration.complition_models_list)
+                break;
+            case this.app.configuration.getUiText('Import completion model...'):
+                await this.importModelToList(this.app.configuration.complition_models_list, "complition_models_list")
+                break;
+        }
+    }
+
     processChatModelsActions = async (selected:vscode.QuickPickItem) => {
+        let chatTypeDetails = this.getChatTypeDetails()
         switch (selected.label) {
             case this.app.configuration.getUiText("Select/start chat model..."):
-                let chatMdls = this.app.configuration.chat_models_list
-                await this.startOrChangeModel(chatMdls, "launch_chat", "selectedChatModel", this.app.llamaServer.killChatCmd, this.app.llamaServer.shellChatCmd);
+                await this.selectStartModel(chatTypeDetails);
                 break;
             case this.app.configuration.getUiText('Add chat model...')??"":
-                await this.addModelToList(this.app.configuration.chat_models_list, "chat_models_list");
+                await this.addModelToList(chatTypeDetails);
+                break;
+            case this.app.configuration.getUiText('Add chat model from huggingface...')??"":
+                await this.addHuggingfaceModelToList(chatTypeDetails);
                 break;
             case this.app.configuration.getUiText('Delete chat model...')??"":
                 await this.deleteModelFromList(this.app.configuration.chat_models_list, "chat_models_list");
@@ -893,13 +1108,16 @@ export class Menu {
     }
 
     processEmbsModelsActions = async (selected:vscode.QuickPickItem) => {
+        let embsTypeDetails = this.getEmbsTypeDetails()
         switch (selected.label) {
             case this.app.configuration.getUiText("Select/start embeddings model..."):
-                let embMdls = this.app.configuration.embeddings_models_list
-                await this.startOrChangeModel(embMdls, "launch_embeddings", "selectedEmbeddingsModel", this.app.llamaServer.killEmbeddingsCmd, this.app.llamaServer.shellEmbeddingsCmd);
+                await this.selectStartModel(embsTypeDetails);
                 break;
             case this.app.configuration.getUiText('Add embeddings model...'):
-                await this.addModelToList(this.app.configuration.embeddings_models_list, "embeddings_models_list");
+                await this.addModelToList(embsTypeDetails);
+                break;
+            case this.app.configuration.getUiText('Add embeddings model from huggingface...')??"":
+                await this.addHuggingfaceModelToList(embsTypeDetails);
                 break;
             case this.app.configuration.getUiText('Delete embeddings model...'):
                 await this.deleteModelFromList(this.app.configuration.embeddings_models_list, "embeddings_models_list");
@@ -919,41 +1137,17 @@ export class Menu {
         }
     }
 
-    processComplModelsActions = async (selected:vscode.QuickPickItem) => {
-        switch (selected.label) {
-            case this.app.configuration.getUiText("Select/start completion model..."):
-                let complMdls = this.app.configuration.complition_models_list
-                await this.startOrChangeModel(complMdls, "launch_completion", 'selectedComplModel', this.app.llamaServer.killFimCmd, this.app.llamaServer.shellFimCmd);
-                break;
-            case this.app.configuration.getUiText('Add completion model...'):
-                await this.addModelToList(this.app.configuration.complition_models_list, "complition_models_list");
-                break;
-            case this.app.configuration.getUiText('Delete completion model...'):
-                await this.deleteModelFromList(this.app.configuration.complition_models_list, "complition_models_list");
-                break;
-            case this.app.configuration.getUiText('View completion model details...'):
-                await this.viewModelFromList(this.app.configuration.complition_models_list)
-                break;
-            case this.app.configuration.getUiText("Deselect/stop completion model"):
-                await this.deselectStopModel(this.app.llamaServer.killFimCmd, "selectedComplModel");
-                break;
-            case this.app.configuration.getUiText('Export completion model...'):
-                await this.exportModelFromList(this.app.configuration.complition_models_list)
-                break;
-            case this.app.configuration.getUiText('Import completion model...'):
-                await this.importModelToList(this.app.configuration.complition_models_list, "complition_models_list")
-                break;
-        }
-    }
-
     processToolsModelsActions = async (selected:vscode.QuickPickItem) => {
+        let toolsTypeDetails = this.getToolsTypeDetails();
         switch (selected.label) {
             case this.app.configuration.getUiText("Select/start tools model..."):
-                let tlsMdls = this.app.configuration.tools_models_list
-                await this.startOrChangeModel(tlsMdls, "launch_tools", "selectedToolsModel", this.app.llamaServer.killToolsCmd, this.app.llamaServer.shellToolsCmd);
+                await this.selectStartModel(toolsTypeDetails);
                 break;
             case this.app.configuration.getUiText('Add tools model...'):
-                await this.addModelToList(this.app.configuration.tools_models_list, "tools_models_list");
+                await this.addModelToList(toolsTypeDetails);
+                break;
+            case this.app.configuration.getUiText('Add tools model from huggingface...')??"":
+                await this.addHuggingfaceModelToList(toolsTypeDetails);
                 break;
             case this.app.configuration.getUiText('Delete tools model...'):
                 await this.deleteModelFromList(this.app.configuration.tools_models_list, "tools_models_list");
@@ -1060,5 +1254,57 @@ export class Menu {
         this.selectedOrchestra = { name: "" };
         this.app.llamaWebviewProvider.updateModelInfo();
         vscode.window.showInformationMessage("Orchestra and models are deselected.")
+    }
+
+    getChatTypeDetails = (): ModelTypeDetails => {
+        return {
+            modelsList: this.app.configuration.chat_models_list,
+            modelsListSettingName: "chat_models_list",
+            newModelPort: this.app.configuration.new_chat_model_port,
+            newModelHost: this.app.configuration.new_chat_model_host,
+            selModelPropName: "selectedChatModel",
+            launchSettingName: "launch_chat",
+            killCmd: this.app.llamaServer.killChatCmd,
+            shellCmd: this.app.llamaServer.shellChatCmd
+        };
+    }
+
+    getComplTypeDetails = (): ModelTypeDetails => {
+        return {
+            modelsList: this.app.configuration.complition_models_list,
+            modelsListSettingName: "complition_models_list",
+            newModelPort: this.app.configuration.new_completion_model_port,
+            newModelHost: this.app.configuration.new_completion_model_host,
+            selModelPropName: "selectedComplModel",
+            launchSettingName: "launch_completion",
+            killCmd: this.app.llamaServer.killFimCmd,
+            shellCmd: this.app.llamaServer.shellFimCmd
+        };
+    }
+
+    getEmbsTypeDetails = (): ModelTypeDetails => {
+        return {
+            modelsList: this.app.configuration.embeddings_models_list,
+            modelsListSettingName: "embeddings_models_list",
+            newModelPort: this.app.configuration.new_embeddings_model_port,
+            newModelHost: this.app.configuration.new_embeddings_model_host,
+            selModelPropName: "selectedEmbeddingsModel",
+            launchSettingName: "launch_embeddings",
+            killCmd: this.app.llamaServer.killEmbeddingsCmd,
+            shellCmd: this.app.llamaServer.shellEmbeddingsCmd
+        };
+    }
+
+    getToolsTypeDetails = (): ModelTypeDetails => {
+        return {
+            modelsList: this.app.configuration.tools_models_list,
+            modelsListSettingName: "tools_models_list",
+            newModelPort: this.app.configuration.new_tools_model_port,
+            newModelHost: this.app.configuration.new_tools_model_host,
+            selModelPropName: "selectedToolsModel",
+            launchSettingName: "launch_tools",
+            killCmd: this.app.llamaServer.killToolsCmd,
+            shellCmd: this.app.llamaServer.shellToolsCmd
+        };
     }
 }
