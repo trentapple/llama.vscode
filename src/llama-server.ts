@@ -149,7 +149,7 @@ export class LlamaServer {
                 cache_prompt: true,
                 t_max_prompt_ms: this.app.extConfig.t_max_prompt_ms,
                 t_max_predict_ms: 1,
-                ...(this.app.extConfig.lora_completion.trim() != "" && { lora: [{ id: 0, scale: 0.5 }] })
+                ...(this.app.extConfig.lora_completion.trim() !== "" && { lora: [{ id: 0, scale: 0.5 }] })
             };
         }
 
@@ -163,7 +163,7 @@ export class LlamaServer {
             ...(nindent && { n_indent: nindent }),
             t_max_prompt_ms: this.app.extConfig.t_max_prompt_ms,
             t_max_predict_ms: this.app.extConfig.t_max_predict_ms,
-            ...(this.app.extConfig.lora_completion.trim() != "" && { lora: [{ id: 0, scale: 0.5 }] })
+            ...(this.app.extConfig.lora_completion.trim() !== "" && { lora: [{ id: 0, scale: 0.5 }] })
         };
     }
 
@@ -229,7 +229,7 @@ export class LlamaServer {
                 cache_prompt: true,
                 t_max_prompt_ms: this.app.extConfig.t_max_prompt_ms,
                 t_max_predict_ms: 1,
-                ...(this.app.extConfig.lora_completion.trim() != "" && { lora: [{ id: 0, scale: 0.5 }] })
+                ...(this.app.extConfig.lora_completion.trim() !== "" && { lora: [{ id: 0, scale: 0.5 }] })
             };
         }
         const replacements = {
@@ -396,13 +396,18 @@ export class LlamaServer {
             return response || undefined;
         }
 
-        // If using Ollama, use the Ollama API
+        // If using Ollama, use the Ollama API with enhanced error handling
         if (this.app.extConfig.use_ollama) {
             try {
+                const requestConfig = {
+                    ...this.app.extConfig.axiosRequestConfigCompl,
+                    timeout: (this.app.extConfig.axiosRequestConfigCompl as any)?.timeout || 30000
+                };
+
                 const response = await axios.post<OllamaResponse>(
                     `${this.app.extConfig.endpoint}/api/generate`,
                     this.createRequestPayload(false, inputPrefix, inputSuffix, chunks, prompt, nindent),
-                    this.app.extConfig.axiosRequestConfigCompl
+                    requestConfig
                 );
 
                 if (response.status === STATUS_OK && response.data) {
@@ -430,8 +435,16 @@ export class LlamaServer {
                 return undefined;
             } catch (error: any) {
                 console.error("Ollama FIM completion error:", error);
+                
+                // Enhanced error handling with specific messages
                 if (error.response?.status === 404) {
-                    vscode.window.showErrorMessage(`Ollama model '${this.app.extConfig.completion_model || 'codellama:7b'}' not found. Please run: ollama pull ${this.app.extConfig.completion_model || 'codellama:7b'}`);
+                    const modelName = this.app.extConfig.completion_model || 'codellama:7b';
+                    vscode.window.showErrorMessage(`Ollama model '${modelName}' not found. Please run: ollama pull ${modelName}`);
+                } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+                    vscode.window.showErrorMessage('Ollama server is not running or not accessible. Please start Ollama and try again.');
+                } else if (error.name === 'TimeoutError' || error.code === 'ECONNABORTED') {
+                    console.log('Request timed out, prioritizing next incoming request');
+                    // Don't show error for timeout - let newer requests take priority
                 }
                 throw error;
             }
@@ -495,10 +508,15 @@ export class LlamaServer {
     ): Promise<LlamaChatResponse | undefined> => {
         if (this.app.extConfig.use_ollama) {
             try {
+                const requestConfig = {
+                    ...this.app.extConfig.axiosRequestConfigChat,
+                    timeout: (this.app.extConfig.axiosRequestConfigChat as any)?.timeout || 30000
+                };
+
                 const response = await axios.post<OllamaChatResponse>(
                     `${this.app.extConfig.endpoint_chat}/api/chat`,
                     this.createChatRequestPayload(prompt),
-                    this.app.extConfig.axiosRequestConfigChat
+                    requestConfig
                 );
 
                 if (response.status === STATUS_OK && response.data) {
@@ -513,8 +531,15 @@ export class LlamaServer {
                 return undefined;
             } catch (error: any) {
                 console.error("Ollama chat completion error:", error);
+                
+                // Enhanced error handling for chat
                 if (error.response?.status === 404) {
-                    vscode.window.showErrorMessage(`Ollama model '${this.app.extConfig.chat_model || 'llama3.1:8b'}' not found. Please run: ollama pull ${this.app.extConfig.chat_model || 'llama3.1:8b'}`);
+                    const modelName = this.app.extConfig.chat_model || 'llama3.1:8b';
+                    vscode.window.showErrorMessage(`Ollama model '${modelName}' not found. Please run: ollama pull ${modelName}`);
+                } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+                    vscode.window.showErrorMessage('Ollama server is not running or not accessible. Please start Ollama and try again.');
+                } else if (error.name === 'TimeoutError' || error.code === 'ECONNABORTED') {
+                    console.log('Chat request timed out, prioritizing next incoming request');
                 }
                 throw error;
             }
@@ -537,11 +562,19 @@ export class LlamaServer {
 
         // If using Ollama, make a request to prepare for the next FIM
         if (this.app.extConfig.use_ollama) {
+            const requestConfig = {
+                ...this.app.extConfig.axiosRequestConfigCompl,
+                timeout: 10000 // Shorter timeout for preparation requests
+            };
+            
             axios.post<OllamaResponse>(
                 `${this.app.extConfig.endpoint}/api/generate`,
                 this.createRequestPayload(true, "", "", chunks, "", undefined),
-                this.app.extConfig.axiosRequestConfigCompl
-            );
+                requestConfig
+            ).catch((error) => {
+                // Silently handle errors for preparation requests to prioritize incoming requests
+                console.log('Preparation request failed:', error.message);
+            });
             return;
         }
 
@@ -556,13 +589,18 @@ export class LlamaServer {
     getEmbeddings = async (text: string): Promise<LlamaEmbeddingsResponse | undefined> => {
         try {
             if (this.app.extConfig.use_ollama) {
+                const requestConfig = {
+                    ...this.app.extConfig.axiosRequestConfigEmbeddings,
+                    timeout: (this.app.extConfig.axiosRequestConfigEmbeddings as any)?.timeout || 30000
+                };
+
                 const response = await axios.post(
                     `${this.app.extConfig.endpoint_embeddings}/api/embeddings`,
                     {
                         "model": this.app.extConfig.embeddings_model || "nomic-embed-text",
                         "prompt": text
                     },
-                    this.app.extConfig.axiosRequestConfigEmbeddings
+                    requestConfig
                 );
 
                 if (response.data && response.data.embedding) {
@@ -599,8 +637,17 @@ export class LlamaServer {
             console.error('Failed to get embeddings:', error);
             let errorMessage = this.app.extConfig.getUiText("Error getting embeddings") + " " + error.message;
             
-            if (this.app.extConfig.use_ollama && error.response?.status === 404) {
-                errorMessage = `Ollama model '${this.app.extConfig.embeddings_model || 'nomic-embed-text'}' not found. Please run: ollama pull ${this.app.extConfig.embeddings_model || 'nomic-embed-text'}`;
+            // Enhanced error handling for embeddings
+            if (this.app.extConfig.use_ollama) {
+                if (error.response?.status === 404) {
+                    const modelName = this.app.extConfig.embeddings_model || 'nomic-embed-text';
+                    errorMessage = `Ollama model '${modelName}' not found. Please run: ollama pull ${modelName}`;
+                } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+                    errorMessage = 'Ollama server is not running or not accessible. Please start Ollama and try again.';
+                } else if (error.name === 'TimeoutError' || error.code === 'ECONNABORTED') {
+                    console.log('Embeddings request timed out, prioritizing next incoming request');
+                    return undefined; // Don't show error for timeout
+                }
             }
             
             vscode.window.showInformationMessage(errorMessage);
