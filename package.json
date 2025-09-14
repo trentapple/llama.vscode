@@ -201,17 +201,17 @@
         "llama-vscode.endpoint": {
           "type": "string",
           "default": "http://127.0.0.1:8012",
-          "description": "The URL to be used by the extension for code completion."
+          "description": "The URL to be used by the extension for code completion. For Ollama, typically http://127.0.0.1:11434"
         },
         "llama-vscode.endpoint_chat": {
           "type": "string",
           "default": "http://127.0.0.1:8011",
-          "description": "The URL to be used by the extension for chat with ai."
+          "description": "The URL to be used by the extension for chat with ai. For Ollama, typically http://127.0.0.1:11434"
         },
         "llama-vscode.endpoint_embeddings": {
           "type": "string",
           "default": "http://127.0.0.1:8010",
-          "description": "The URL to be used by the extension for creating embeddings."
+          "description": "The URL to be used by the extension for creating embeddings. For Ollama, typically http://127.0.0.1:11434"
         },
         "llama-vscode.auto": {
           "type": "boolean",
@@ -382,6 +382,26 @@
           "type": "string",
           "default": "<|fim_prefix|>{inputPrefix}{prompt}<|fim_suffix|>{inputSuffix}<|fim_middle|>",
           "description": "The prompt template to be used for the OpenAI compatible endpoint."
+        },
+        "llama-vscode.completion_model": {
+          "type": "string",
+          "default": "",
+          "description": "Model name for code completion (FIM). Leave empty to use server default. For Ollama, use model names like 'codellama:7b' or 'deepseek-coder:6.7b'."
+        },
+        "llama-vscode.chat_model": {
+          "type": "string",
+          "default": "",
+          "description": "Model name for chat interactions. Leave empty to use server default. For Ollama, use model names like 'llama3.1:8b' or 'qwen2.5-coder:7b'."
+        },
+        "llama-vscode.embeddings_model": {
+          "type": "string",
+          "default": "",
+          "description": "Model name for embeddings. Leave empty to use server default. For Ollama, use model names like 'nomic-embed-text' or 'all-minilm'."
+        },
+        "llama-vscode.use_ollama": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Ollama compatibility mode. When enabled, the extension will use Ollama-specific API endpoints and model handling."
         }
       }
     },

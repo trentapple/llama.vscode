@@ -24,6 +24,36 @@ export interface LlamaChatResponse {
     choices: [{message:{content?: string}}];
 }
 
+export interface OllamaResponse {
+    model: string;
+    created_at: string;
+    response?: string;
+    done: boolean;
+    context?: number[];
+    total_duration?: number;
+    load_duration?: number;
+    prompt_eval_count?: number;
+    prompt_eval_duration?: number;
+    eval_count?: number;
+    eval_duration?: number;
+}
+
+export interface OllamaChatResponse {
+    model: string;
+    created_at: string;
+    message?: {
+        role: string;
+        content: string;
+    };
+    done: boolean;
+    total_duration?: number;
+    load_duration?: number;
+    prompt_eval_count?: number;
+    prompt_eval_duration?: number;
+    eval_count?: number;
+    eval_duration?: number;
+}
+
 export interface LlamaEmbeddingsResponse {
     "model": string,
     "object": string,
@@ -104,6 +134,10 @@ export class LlamaServer {
     }
 
     private createRequestPayload(noPredict: boolean, inputPrefix: string, inputSuffix: string, chunks: any[], prompt: string, nindent?: number) {
+        if (this.app.extConfig.use_ollama) {
+            return this.createOllamaRequestPayload(noPredict, inputPrefix, inputSuffix, chunks, prompt, nindent);
+        }
+
         if (noPredict) {
             return {
                 input_prefix: inputPrefix,
@@ -133,7 +167,42 @@ export class LlamaServer {
         };
     }
 
+    private createOllamaRequestPayload(noPredict: boolean, inputPrefix: string, inputSuffix: string, chunks: any[], prompt: string, nindent?: number) {
+        const additional_context = chunks.length > 0 ? "Context:\n\n" + chunks.join("\n") : "";
+        const fimPrompt = `<PRE> ${inputPrefix}${prompt} <SUF>${inputSuffix} <MID>`;
+        
+        if (noPredict) {
+            return {
+                model: this.app.extConfig.completion_model || "codellama:7b",
+                prompt: additional_context + fimPrompt,
+                stream: false,
+                options: {
+                    num_predict: 0,
+                    temperature: 0.1,
+                    top_p: this.defaultRequestParams.top_p,
+                    top_k: this.defaultRequestParams.top_k
+                }
+            };
+        }
+
+        return {
+            model: this.app.extConfig.completion_model || "codellama:7b",
+            prompt: additional_context + fimPrompt,
+            stream: false,
+            options: {
+                num_predict: this.app.extConfig.n_predict,
+                temperature: 0.1,
+                top_p: this.defaultRequestParams.top_p,
+                top_k: this.defaultRequestParams.top_k
+            }
+        };
+    }
+
     private createChatEditRequestPayload(noPredict: boolean, instructions: string, originalText: string, chunks: any[], context: string, nindent?: number) {
+        if (this.app.extConfig.use_ollama) {
+            return this.createOllamaChatEditRequestPayload(noPredict, instructions, originalText, chunks, context, nindent);
+        }
+
         const CHUNKS_PLACEHOLDER = "[chunks]";
         const INSTRUCTIONS_PLACEHOLDER = "[instructions]";
         const ORIGINAL_TEXT_PLACEHOLDER = "[originalText]";
@@ -201,7 +270,56 @@ export class LlamaServer {
           };
     }
 
+    private createOllamaChatEditRequestPayload(noPredict: boolean, instructions: string, originalText: string, chunks: any[], context: string, nindent?: number) {
+        const replacements = {
+            instructions: instructions,
+            originalText: originalText,
+        }
+
+        const messages = [
+            {
+                "role": "system",
+                "content": "You are an expert coder."
+            },
+            {
+                "role": "user",
+                "content": this.app.prompts.replacePlaceholders(this.app.prompts.CHAT_EDIT_TEXT, replacements)
+            }
+        ];
+
+        if (noPredict) {
+            return {
+                model: this.app.extConfig.chat_model || "llama3.1:8b",
+                messages: messages,
+                stream: false,
+                options: {
+                    num_predict: 0,
+                    temperature: 0.8,
+                    top_p: 0.95,
+                    top_k: 40
+                }
+            };
+        }
+
+        return {
+            model: this.app.extConfig.chat_model || "llama3.1:8b",
+            messages: messages,
+            stream: false,
+            options: {
+                num_predict: -1,
+                temperature: 0.8,
+                top_p: 0.95,
+                top_k: 40,
+                repeat_penalty: 1.1
+            }
+        };
+    }
+
     private createChatRequestPayload(content: string) {
+        if (this.app.extConfig.use_ollama) {
+            return this.createOllamaChatRequestPayload(content);
+        }
+
         return {
             "messages": [
               {
@@ -239,6 +357,29 @@ export class LlamaServer {
           };
     }
 
+    private createOllamaChatRequestPayload(content: string) {
+        return {
+            model: this.app.extConfig.chat_model || "llama3.1:8b",
+            messages: [
+                {
+                    "role": "system",
+                    "content": "You are an expert coder."
+                },
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ],
+            stream: false,
+            options: {
+                temperature: 0.8,
+                top_p: 0.95,
+                top_k: 40,
+                repeat_penalty: 1.1
+            }
+        };
+    }
+
     getFIMCompletion = async (
         inputPrefix: string,
         inputSuffix: string,
@@ -250,6 +391,35 @@ export class LlamaServer {
         if (this.app.extConfig.use_openai_endpoint) {
             const response = await this.handleOpenAICompletion(chunks, inputPrefix, inputSuffix, prompt);
             return response || undefined;
+        }
+
+        // If using Ollama, use the Ollama API
+        if (this.app.extConfig.use_ollama) {
+            const response = await axios.post<OllamaResponse>(
+                `${this.app.extConfig.endpoint}/api/generate`,
+                this.createRequestPayload(false, inputPrefix, inputSuffix, chunks, prompt, nindent),
+                this.app.extConfig.axiosRequestConfigCompl
+            );
+
+            if (response.status === STATUS_OK && response.data) {
+                return {
+                    content: response.data.response,
+                    generation_settings: {
+                        model: response.data.model,
+                        created_at: response.data.created_at,
+                        done: response.data.done
+                    },
+                    timings: {
+                        prompt_n: response.data.prompt_eval_count,
+                        prompt_ms: response.data.prompt_eval_duration ? response.data.prompt_eval_duration / 1000000 : undefined,
+                        predicted_n: response.data.eval_count,
+                        predicted_ms: response.data.eval_duration ? response.data.eval_duration / 1000000 : undefined,
+                        predicted_per_second: response.data.eval_count && response.data.eval_duration ? 
+                            (response.data.eval_count * 1000000000) / response.data.eval_duration : undefined
+                    }
+                };
+            }
+            return undefined;
         }
 
         // else, default to llama.cpp
@@ -269,6 +439,25 @@ export class LlamaServer {
         chunks: any,
         nindent: number
     ): Promise<LlamaChatResponse | undefined> => {
+        if (this.app.extConfig.use_ollama) {
+            const response = await axios.post<OllamaChatResponse>(
+                `${this.app.extConfig.endpoint_chat}/api/chat`,
+                this.createChatEditRequestPayload(false, instructions, originalText, chunks, context, nindent),
+                this.app.extConfig.axiosRequestConfigChat
+            );
+
+            if (response.status === STATUS_OK && response.data) {
+                return {
+                    choices: [{
+                        message: {
+                            content: response.data.message?.content
+                        }
+                    }]
+                };
+            }
+            return undefined;
+        }
+
         const response = await axios.post<LlamaChatResponse>(
             `${this.app.extConfig.endpoint_chat}/v1/chat/completions`,
             this.createChatEditRequestPayload(false, instructions, originalText, chunks, context, nindent),
@@ -281,6 +470,25 @@ export class LlamaServer {
     getChatCompletion = async (
         prompt: string,
     ): Promise<LlamaChatResponse | undefined> => {
+        if (this.app.extConfig.use_ollama) {
+            const response = await axios.post<OllamaChatResponse>(
+                `${this.app.extConfig.endpoint_chat}/api/chat`,
+                this.createChatRequestPayload(prompt),
+                this.app.extConfig.axiosRequestConfigChat
+            );
+
+            if (response.status === STATUS_OK && response.data) {
+                return {
+                    choices: [{
+                        message: {
+                            content: response.data.message?.content
+                        }
+                    }]
+                };
+            }
+            return undefined;
+        }
+
         const response = await axios.post<LlamaChatResponse>(
             `${this.app.extConfig.endpoint_chat}/v1/chat/completions`,
             this.createChatRequestPayload(prompt),
@@ -296,6 +504,16 @@ export class LlamaServer {
             return;
         }
 
+        // If using Ollama, make a request to prepare for the next FIM
+        if (this.app.extConfig.use_ollama) {
+            axios.post<OllamaResponse>(
+                `${this.app.extConfig.endpoint}/api/generate`,
+                this.createRequestPayload(true, "", "", chunks, "", undefined),
+                this.app.extConfig.axiosRequestConfigCompl
+            );
+            return;
+        }
+
         // else, make a request to the API to prepare for the next FIM
         axios.post<LlamaResponse>(
             `${this.app.extConfig.endpoint}/infill`,
@@ -306,6 +524,36 @@ export class LlamaServer {
 
     getEmbeddings = async (text: string): Promise<LlamaEmbeddingsResponse | undefined> => {
         try {
+            if (this.app.extConfig.use_ollama) {
+                const response = await axios.post(
+                    `${this.app.extConfig.endpoint_embeddings}/api/embeddings`,
+                    {
+                        "model": this.app.extConfig.embeddings_model || "nomic-embed-text",
+                        "prompt": text
+                    },
+                    this.app.extConfig.axiosRequestConfigEmbeddings
+                );
+
+                if (response.data && response.data.embedding) {
+                    return {
+                        "model": response.data.model || this.app.extConfig.embeddings_model || "nomic-embed-text",
+                        "object": "list",
+                        "usage": {
+                            "prompt_tokens": text.length,
+                            "total_tokens": text.length
+                        },
+                        "data": [
+                            {
+                                "embedding": response.data.embedding,
+                                "index": 0,
+                                "object": "embedding"
+                            }
+                        ]
+                    };
+                }
+                return undefined;
+            }
+
             const response = await axios.post<LlamaEmbeddingsResponse>(
                 `${this.app.extConfig.endpoint_embeddings}/v1/embeddings`,
                 {
@@ -321,8 +569,6 @@ export class LlamaServer {
             vscode.window.showInformationMessage(this.app.extConfig.getUiText("Error getting embeddings") + " " + error.message);
             return undefined;
         }
-
-
     };
 
     shellFimCmd = (launchCmd: string): void => {

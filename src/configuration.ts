@@ -42,6 +42,12 @@ export class Configuration {
     openai_client_model: string = "";
     openai_prompt_template: string = "<|fim_prefix|>{inputPrefix}{prompt}<|fim_suffix|>{inputSuffix}<|fim_middle|>";
 
+    // Ollama integration
+    use_ollama = false;
+    completion_model = "";
+    chat_model = "";
+    embeddings_model = "";
+
     rag_enabled = true;
     rag_chunk_max_chars = 800
     rag_max_lines_per_chunk = 40
@@ -114,6 +120,10 @@ export class Configuration {
         this.use_openai_endpoint = Boolean(config.get<boolean>("use_openai_endpoint"));
         this.openai_client_model = String(config.get<string>("openai_client_model"));
         this.openai_prompt_template = String(config.get<string>("openai_prompt_template"));
+        this.use_ollama = Boolean(config.get<boolean>("use_ollama"));
+        this.completion_model = String(config.get<string>("completion_model"));
+        this.chat_model = String(config.get<string>("chat_model"));
+        this.embeddings_model = String(config.get<string>("embeddings_model"));
         this.auto = Boolean(config.get<boolean>("auto"));
         this.api_key = String(config.get<string>("api_key"));
         this.api_key_chat = String(config.get<string>("api_key_chat"));

@@ -20,6 +20,7 @@ Local LLM-assisted text completion extension for VS Code
 - Ring context with chunks from open and edited files and yanked text
 - [Supports very large contexts even on low-end hardware via smart context reuse](https://github.com/ggerganov/llama.cpp/pull/9787)
 - Display performance stats
+- **NEW**: Ollama integration with configurable models for completion, chat, and embeddings
 
 ## Installation
 
@@ -31,7 +32,33 @@ Install the [llama-vscode](https://marketplace.visualstudio.com/items?itemName=g
 
 Note: also available at [Open VSX](https://open-vsx.org/extension/ggml-org/llama-vscode)
 
-### `llama.cpp` setup
+### Backend Setup Options
+
+You can choose between two backends:
+
+#### Option 1: Ollama (Recommended for ease of use)
+
+1. Install [Ollama](https://ollama.ai/)
+2. Pull the models you want to use:
+   ```bash
+   # For code completion (FIM)
+   ollama pull codellama:7b
+   
+   # For chat
+   ollama pull llama3.1:8b
+   
+   # For embeddings
+   ollama pull nomic-embed-text
+   ```
+3. Configure VS Code settings:
+   - Set `llama-vscode.use_ollama` to `true`
+   - Set endpoints to `http://127.0.0.1:11434` (Ollama's default)
+   - Set model names:
+     - `llama-vscode.completion_model`: `codellama:7b`
+     - `llama-vscode.chat_model`: `llama3.1:8b`
+     - `llama-vscode.embeddings_model`: `nomic-embed-text`
+
+#### Option 2: llama.cpp (Advanced users)
 
 The plugin requires a [llama.cpp](https://github.com/ggerganov/llama.cpp) server instance to be running at the configured endpoint:
 
@@ -101,7 +128,35 @@ You can use any other FIM-compatible model that your system can handle. By defau
 
 ### Recommended LLMs
 
+#### For Ollama
+- **Code Completion**: `codellama:7b`, `deepseek-coder:6.7b`, `starcoder2:7b`
+- **Chat**: `llama3.1:8b`, `qwen2.5-coder:7b`, `deepseek-coder:6.7b`
+- **Embeddings**: `nomic-embed-text`, `all-minilm`
+
+#### For llama.cpp
 The plugin requires FIM-compatible models: [HF collection](https://huggingface.co/collections/ggml-org/llamavim-6720fece33898ac10544ecf9)
+
+## Configuration
+
+### Ollama Configuration
+
+To use Ollama, configure the following settings in VS Code:
+
+```json
+{
+  "llama-vscode.use_ollama": true,
+  "llama-vscode.endpoint": "http://127.0.0.1:11434",
+  "llama-vscode.endpoint_chat": "http://127.0.0.1:11434",
+  "llama-vscode.endpoint_embeddings": "http://127.0.0.1:11434",
+  "llama-vscode.completion_model": "codellama:7b",
+  "llama-vscode.chat_model": "llama3.1:8b",
+  "llama-vscode.embeddings_model": "nomic-embed-text"
+}
+```
+
+### llama.cpp Configuration
+
+For llama.cpp, use the existing configuration system with separate endpoints and launch commands.
 
 ## Examples
 
