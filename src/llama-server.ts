@@ -169,6 +169,7 @@ export class LlamaServer {
 
     private createOllamaRequestPayload(noPredict: boolean, inputPrefix: string, inputSuffix: string, chunks: any[], prompt: string, nindent?: number) {
         const additional_context = chunks.length > 0 ? "Context:\n\n" + chunks.join("\n") : "";
+        // Use the FIM format that works well with CodeLlama and other FIM models
         const fimPrompt = `<PRE> ${inputPrefix}${prompt} <SUF>${inputSuffix} <MID>`;
         
         if (noPredict) {
@@ -180,7 +181,8 @@ export class LlamaServer {
                     num_predict: 0,
                     temperature: 0.1,
                     top_p: this.defaultRequestParams.top_p,
-                    top_k: this.defaultRequestParams.top_k
+                    top_k: this.defaultRequestParams.top_k,
+                    stop: ["<END>", "<PRE>", "<SUF>", "<MID>"] // Stop tokens for FIM
                 }
             };
         }
@@ -193,7 +195,8 @@ export class LlamaServer {
                 num_predict: this.app.extConfig.n_predict,
                 temperature: 0.1,
                 top_p: this.defaultRequestParams.top_p,
-                top_k: this.defaultRequestParams.top_k
+                top_k: this.defaultRequestParams.top_k,
+                stop: ["<END>", "<PRE>", "<SUF>", "<MID>"] // Stop tokens for FIM
             }
         };
     }
@@ -395,31 +398,43 @@ export class LlamaServer {
 
         // If using Ollama, use the Ollama API
         if (this.app.extConfig.use_ollama) {
-            const response = await axios.post<OllamaResponse>(
-                `${this.app.extConfig.endpoint}/api/generate`,
-                this.createRequestPayload(false, inputPrefix, inputSuffix, chunks, prompt, nindent),
-                this.app.extConfig.axiosRequestConfigCompl
-            );
+            try {
+                const response = await axios.post<OllamaResponse>(
+                    `${this.app.extConfig.endpoint}/api/generate`,
+                    this.createRequestPayload(false, inputPrefix, inputSuffix, chunks, prompt, nindent),
+                    this.app.extConfig.axiosRequestConfigCompl
+                );
 
-            if (response.status === STATUS_OK && response.data) {
-                return {
-                    content: response.data.response,
-                    generation_settings: {
-                        model: response.data.model,
-                        created_at: response.data.created_at,
-                        done: response.data.done
-                    },
-                    timings: {
-                        prompt_n: response.data.prompt_eval_count,
-                        prompt_ms: response.data.prompt_eval_duration ? response.data.prompt_eval_duration / 1000000 : undefined,
-                        predicted_n: response.data.eval_count,
-                        predicted_ms: response.data.eval_duration ? response.data.eval_duration / 1000000 : undefined,
-                        predicted_per_second: response.data.eval_count && response.data.eval_duration ? 
-                            (response.data.eval_count * 1000000000) / response.data.eval_duration : undefined
-                    }
-                };
+                if (response.status === STATUS_OK && response.data) {
+                    // Clean up the response content by removing FIM tokens if they leaked through
+                    let content = response.data.response || "";
+                    content = content.replace(/<\/?(?:PRE|SUF|MID|END)>/g, "").trim();
+                    
+                    return {
+                        content: content,
+                        generation_settings: {
+                            model: response.data.model,
+                            created_at: response.data.created_at,
+                            done: response.data.done
+                        },
+                        timings: {
+                            prompt_n: response.data.prompt_eval_count,
+                            prompt_ms: response.data.prompt_eval_duration ? response.data.prompt_eval_duration / 1000000 : undefined,
+                            predicted_n: response.data.eval_count,
+                            predicted_ms: response.data.eval_duration ? response.data.eval_duration / 1000000 : undefined,
+                            predicted_per_second: response.data.eval_count && response.data.eval_duration ? 
+                                (response.data.eval_count * 1000000000) / response.data.eval_duration : undefined
+                        }
+                    };
+                }
+                return undefined;
+            } catch (error: any) {
+                console.error("Ollama FIM completion error:", error);
+                if (error.response?.status === 404) {
+                    vscode.window.showErrorMessage(`Ollama model '${this.app.extConfig.completion_model || 'codellama:7b'}' not found. Please run: ollama pull ${this.app.extConfig.completion_model || 'codellama:7b'}`);
+                }
+                throw error;
             }
-            return undefined;
         }
 
         // else, default to llama.cpp
@@ -440,22 +455,30 @@ export class LlamaServer {
         nindent: number
     ): Promise<LlamaChatResponse | undefined> => {
         if (this.app.extConfig.use_ollama) {
-            const response = await axios.post<OllamaChatResponse>(
-                `${this.app.extConfig.endpoint_chat}/api/chat`,
-                this.createChatEditRequestPayload(false, instructions, originalText, chunks, context, nindent),
-                this.app.extConfig.axiosRequestConfigChat
-            );
+            try {
+                const response = await axios.post<OllamaChatResponse>(
+                    `${this.app.extConfig.endpoint_chat}/api/chat`,
+                    this.createChatEditRequestPayload(false, instructions, originalText, chunks, context, nindent),
+                    this.app.extConfig.axiosRequestConfigChat
+                );
 
-            if (response.status === STATUS_OK && response.data) {
-                return {
-                    choices: [{
-                        message: {
-                            content: response.data.message?.content
-                        }
-                    }]
-                };
+                if (response.status === STATUS_OK && response.data) {
+                    return {
+                        choices: [{
+                            message: {
+                                content: response.data.message?.content
+                            }
+                        }]
+                    };
+                }
+                return undefined;
+            } catch (error: any) {
+                console.error("Ollama chat edit completion error:", error);
+                if (error.response?.status === 404) {
+                    vscode.window.showErrorMessage(`Ollama model '${this.app.extConfig.chat_model || 'llama3.1:8b'}' not found. Please run: ollama pull ${this.app.extConfig.chat_model || 'llama3.1:8b'}`);
+                }
+                throw error;
             }
-            return undefined;
         }
 
         const response = await axios.post<LlamaChatResponse>(
@@ -471,22 +494,30 @@ export class LlamaServer {
         prompt: string,
     ): Promise<LlamaChatResponse | undefined> => {
         if (this.app.extConfig.use_ollama) {
-            const response = await axios.post<OllamaChatResponse>(
-                `${this.app.extConfig.endpoint_chat}/api/chat`,
-                this.createChatRequestPayload(prompt),
-                this.app.extConfig.axiosRequestConfigChat
-            );
+            try {
+                const response = await axios.post<OllamaChatResponse>(
+                    `${this.app.extConfig.endpoint_chat}/api/chat`,
+                    this.createChatRequestPayload(prompt),
+                    this.app.extConfig.axiosRequestConfigChat
+                );
 
-            if (response.status === STATUS_OK && response.data) {
-                return {
-                    choices: [{
-                        message: {
-                            content: response.data.message?.content
-                        }
-                    }]
-                };
+                if (response.status === STATUS_OK && response.data) {
+                    return {
+                        choices: [{
+                            message: {
+                                content: response.data.message?.content
+                            }
+                        }]
+                    };
+                }
+                return undefined;
+            } catch (error: any) {
+                console.error("Ollama chat completion error:", error);
+                if (error.response?.status === 404) {
+                    vscode.window.showErrorMessage(`Ollama model '${this.app.extConfig.chat_model || 'llama3.1:8b'}' not found. Please run: ollama pull ${this.app.extConfig.chat_model || 'llama3.1:8b'}`);
+                }
+                throw error;
             }
-            return undefined;
         }
 
         const response = await axios.post<LlamaChatResponse>(
@@ -566,7 +597,13 @@ export class LlamaServer {
             return response.data;
         } catch (error: any) {
             console.error('Failed to get embeddings:', error);
-            vscode.window.showInformationMessage(this.app.extConfig.getUiText("Error getting embeddings") + " " + error.message);
+            let errorMessage = this.app.extConfig.getUiText("Error getting embeddings") + " " + error.message;
+            
+            if (this.app.extConfig.use_ollama && error.response?.status === 404) {
+                errorMessage = `Ollama model '${this.app.extConfig.embeddings_model || 'nomic-embed-text'}' not found. Please run: ollama pull ${this.app.extConfig.embeddings_model || 'nomic-embed-text'}`;
+            }
+            
+            vscode.window.showInformationMessage(errorMessage);
             return undefined;
         }
     };
@@ -657,5 +694,49 @@ export class LlamaServer {
 
     killTrainCmd = (): void => {
         if (this.vsCodeTrainTerminal) this.vsCodeTrainTerminal.dispose();
+    }
+
+    // Check if Ollama models are available
+    checkOllamaModels = async (): Promise<{completion: boolean, chat: boolean, embeddings: boolean}> => {
+        const result = {completion: false, chat: false, embeddings: false};
+        
+        if (!this.app.extConfig.use_ollama) {
+            return result;
+        }
+
+        try {
+            // Check completion model
+            if (this.app.extConfig.completion_model) {
+                const compResponse = await axios.post(`${this.app.extConfig.endpoint}/api/generate`, {
+                    model: this.app.extConfig.completion_model,
+                    prompt: "test",
+                    options: { num_predict: 1 }
+                }, {timeout: 5000});
+                result.completion = compResponse.status === 200;
+            }
+
+            // Check chat model
+            if (this.app.extConfig.chat_model) {
+                const chatResponse = await axios.post(`${this.app.extConfig.endpoint_chat}/api/chat`, {
+                    model: this.app.extConfig.chat_model,
+                    messages: [{role: "user", content: "test"}],
+                    options: { num_predict: 1 }
+                }, {timeout: 5000});
+                result.chat = chatResponse.status === 200;
+            }
+
+            // Check embeddings model
+            if (this.app.extConfig.embeddings_model) {
+                const embResponse = await axios.post(`${this.app.extConfig.endpoint_embeddings}/api/embeddings`, {
+                    model: this.app.extConfig.embeddings_model,
+                    prompt: "test"
+                }, {timeout: 5000});
+                result.embeddings = embResponse.status === 200;
+            }
+        } catch (error) {
+            console.error("Error checking Ollama models:", error);
+        }
+
+        return result;
     }
 }

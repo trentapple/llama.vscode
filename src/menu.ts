@@ -98,6 +98,20 @@ export class Menu {
                 label: this.app.extConfig.getUiText("Start embeddings llama.cpp server")??"",
                 description: this.app.extConfig.getUiText(`Runs the command from property launch_embeddings`)
             })
+
+        // Add Ollama-specific menu items
+        if (this.app.extConfig.use_ollama) {
+            menuItems.push(
+                {
+                    label: "$(cloud-download) Check Ollama Models",
+                    description: "Verify that configured Ollama models are available"
+                },
+                {
+                    label: "$(info) Show Ollama Configuration",
+                    description: "Display current Ollama model configuration"
+                }
+            );
+        }
         if (this.app.extConfig.launch_training_completion.trim() != "") {
             menuItems.push(
             {
@@ -250,12 +264,61 @@ export class Menu {
             case this.app.extConfig.getUiText("Chat with AI with project context"):
                 this.app.askAi.showChatWithAi(true, context)
                 break;
+            case "$(cloud-download) Check Ollama Models":
+                await this.checkOllamaModels();
+                break;
+            case "$(info) Show Ollama Configuration":
+                await this.showOllamaConfiguration();
+                break;
             default:
                 await this.handleCompletionToggle(selected.label, currentLanguage, languageSettings);
                 await this.handleRagToggle(selected.label, currentLanguage, languageSettings);
                 break;
         }
         this.app.statusbar.updateStatusBarText();
+    }
+
+    private async checkOllamaModels() {
+        if (!this.app.extConfig.use_ollama) {
+            vscode.window.showInformationMessage("Ollama mode is not enabled. Enable it in settings first.");
+            return;
+        }
+
+        vscode.window.showInformationMessage("Checking Ollama models...");
+        
+        try {
+            const modelStatus = await this.app.llamaServer.checkOllamaModels();
+            
+            let message = "Ollama Model Status:\n";
+            message += `• Completion (${this.app.extConfig.completion_model || 'not set'}): ${modelStatus.completion ? '✅ Available' : '❌ Not available'}\n`;
+            message += `• Chat (${this.app.extConfig.chat_model || 'not set'}): ${modelStatus.chat ? '✅ Available' : '❌ Not available'}\n`;
+            message += `• Embeddings (${this.app.extConfig.embeddings_model || 'not set'}): ${modelStatus.embeddings ? '✅ Available' : '❌ Not available'}`;
+            
+            vscode.window.showInformationMessage(message);
+        } catch (error) {
+            vscode.window.showErrorMessage("Failed to check Ollama models. Make sure Ollama is running.");
+        }
+    }
+
+    private async showOllamaConfiguration() {
+        if (!this.app.extConfig.use_ollama) {
+            vscode.window.showInformationMessage("Ollama mode is not enabled.");
+            return;
+        }
+
+        const config = `Current Ollama Configuration:
+
+Endpoints:
+• Completion: ${this.app.extConfig.endpoint}
+• Chat: ${this.app.extConfig.endpoint_chat}
+• Embeddings: ${this.app.extConfig.endpoint_embeddings}
+
+Models:
+• Completion: ${this.app.extConfig.completion_model || 'not set (using default)'}
+• Chat: ${this.app.extConfig.chat_model || 'not set (using default)'}
+• Embeddings: ${this.app.extConfig.embeddings_model || 'not set (using default)'}`;
+
+        vscode.window.showInformationMessage(config);
     }
 
     getPorts = () => {

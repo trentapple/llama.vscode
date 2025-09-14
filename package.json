@@ -386,17 +386,20 @@
         "llama-vscode.completion_model": {
           "type": "string",
           "default": "",
-          "description": "Model name for code completion (FIM). Leave empty to use server default. For Ollama, use model names like 'codellama:7b' or 'deepseek-coder:6.7b'."
+          "description": "Model name for code completion (FIM). Leave empty to use server default. For Ollama, use model names like 'codellama:7b' or 'deepseek-coder:6.7b'.",
+          "examples": ["codellama:7b", "deepseek-coder:6.7b", "starcoder2:7b"]
         },
         "llama-vscode.chat_model": {
           "type": "string",
           "default": "",
-          "description": "Model name for chat interactions. Leave empty to use server default. For Ollama, use model names like 'llama3.1:8b' or 'qwen2.5-coder:7b'."
+          "description": "Model name for chat interactions. Leave empty to use server default. For Ollama, use model names like 'llama3.1:8b' or 'qwen2.5-coder:7b'.",
+          "examples": ["llama3.1:8b", "qwen2.5-coder:7b", "deepseek-coder:6.7b", "llama3.2:3b"]
         },
         "llama-vscode.embeddings_model": {
           "type": "string",
           "default": "",
-          "description": "Model name for embeddings. Leave empty to use server default. For Ollama, use model names like 'nomic-embed-text' or 'all-minilm'."
+          "description": "Model name for embeddings. Leave empty to use server default. For Ollama, use model names like 'nomic-embed-text' or 'all-minilm'.",
+          "examples": ["nomic-embed-text", "all-minilm", "mxbai-embed-large"]
         },
         "llama-vscode.use_ollama": {
           "type": "boolean",
