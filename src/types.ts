@@ -1,3 +1,28 @@
+export interface ChatMessage {
+  role: string; // or just 'string' if you need more roles
+  content: string;
+  tool_call_id?: string
+}
+
+export interface LlamaResponse {
+    content?: string;
+    generation_settings?: any;
+    tokens_cached?: number;
+    truncated?: boolean;
+    timings?: {
+        prompt_n?: number;
+        prompt_ms?: number;
+        prompt_per_second?: number;
+        predicted_n?: number;
+        predicted_ms?: number;
+        predicted_per_second?: number;
+    };
+}
+
+export interface LlamaChatResponse {
+    choices: [{message:{content?: string}}];
+}
+
 export interface ChunkEntry {
     uri: string;
     content: string;
@@ -77,5 +102,10 @@ export interface ModelTypeDetails {
     launchSettingName: string
     killCmd: () => void
     shellCmd: (message: string) => void
+}
+
+export interface ContextCustom {
+    get_list: string
+    get_item_context: string
 }
 
